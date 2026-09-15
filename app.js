@@ -41,7 +41,8 @@ function makeText(g, x, y, lines, fill) {
     if (lineFill) s.setAttribute("fill", lineFill);
     prev = c;
     const upper = /[A-ZÅÄÖ]/.test(text) && text === text.toUpperCase();
-    wpx = Math.max(wpx, text.length * size * (upper ? .7 : weight >= 600 ? .6 : .55));
+    // Uppskattad bredd per tecken. Versaler uppmätta med getBBox: 0,57–0,63 · storlek, så 0,65 är på säkra sidan.
+    wpx = Math.max(wpx, text.length * size * (upper ? .65 : weight >= 600 ? .6 : .55));
   });
   const l = { el: t, px, wpx, hpx: H, kMax: Infinity };
   labels.push(l);
@@ -73,8 +74,12 @@ const R = 285, RC = 368;     // inzoomad vy centreras på R; utflyttade rubriker
 // Senare dagar hamnar då nedanför fokuslinjen.
 const FOCUS_A = -Math.PI / 2;
 const DAY_VIEW = { orient: FOCUS_A };
-const CALLOUT_PX = 140;             // bredd som rubrikerna utanför ringen får på smala skärmar
-const TOP_UI = 64, CARD_UI = 190;   // px som verktygsfältet och kortet täcker i dag-läget
+const CALLOUT_PX = 140;             // bredd som rubrikerna utanför ringen får när de visas
+// Telefon (stående): dagarna är stora nog att sikta på, dagnumren ligger vid vänsterkanten och bandet
+// beskärs åt höger. Rubriker utanför ringen får inte plats; kortet visar vad som gäller för dagen.
+const narrow = () => innerWidth < 600;
+const DAY_PX = 16;                  // höjd per dag vid dagnumren
+const DAY_EDGE = 362;               // radien som hamnar vid skärmens vänsterkant
 
 // Allt som vrids med hjulet. Texten vrids tillbaka i CSS (--unrot) och står alltid upprätt.
 const world = el(svg, "g", { id: "world" });
@@ -106,7 +111,8 @@ for (let t = START; t < END; t += DAY) {
   line(detailBg, wd === 1 ? THICK_OUT : 335, OUTER, a, { stroke: "var(--separator)", "stroke-width": wd === 1 ? 1 : .75 });
   if (wd === 1) label(detailText, 302, angT(t + 3.5 * DAY), [["v" + isoWeek(t), 11, 600]], { arc: 302 * 7 * DPD, thick: 20, fill: "var(--secondary)", ...DAY_VIEW });
   const isToday = t === TODAY;
-  const fit = { arc: 353 * DPD, thick: 18, fill: isToday ? "#fff" : weekend ? "var(--tertiary)" : "var(--secondary)", ...DAY_VIEW };
+  // Helger skiljs ut av bakgrundstonen; numren behöver full läsbar kontrast
+  const fit = { arc: 353 * DPD, thick: 18, fill: isToday ? "#fff" : "var(--secondary)", ...DAY_VIEW };
   if (isToday) {
     const [x, y] = pt(353, centerAngle(t));
     todayNum = { circle: el(detailText, "circle", { cx: x, cy: y, r: 9, fill: "var(--today-ink)" }) };
@@ -149,13 +155,11 @@ for (const o of OFF) {
         { arc: 172 * nDays(o) * DPD, thick: 26, ...DAY_VIEW });
 }
 
-// Årstider och idag-status i mitten (årsvy)
-for (const [s, a] of [["VINTER", 0], ["HÖST", Math.PI / 2], ["SOMMAR", Math.PI], ["VÅR", -Math.PI / 2]])
-  label(overview, 152, a, [[s, 10, 600]], { fill: "var(--tertiary)" });
-// Byggs om när händelser ändras, eftersom nästa egna händelse visas här
+// Idag-status i mitten (årsvy). Byggs om när händelser ändras, eftersom nästa egna händelse visas här
 let centerLabel = null;
 function buildCenter() {
   if (centerLabel) { centerLabel.el.remove(); labels = labels.filter(l => l !== centerLabel); }
+  lastK = NaN;
   if (!todayInYear) {
     const status = TODAY >= END ? "Läsåret är slut" : `Börjar ${until((START - TODAY) / DAY)}`;
     centerLabel = makeText(overview, cx, cy, [
@@ -180,25 +184,32 @@ const focusLine = el(topG, "line", { stroke: "var(--fg)", "stroke-opacity": .45,
 let todayDot = null;
 if (todayInYear) {
   const a = centerAngle(TODAY);
-  // Kontur i bakgrundsfärg så att linjen skiljer sig mot alla LP-färger
-  line(topG, INNER, OUTER, a, { stroke: "var(--bg)", "stroke-width": 4, "stroke-linecap": "round" });
-  line(topG, INNER, OUTER, a, { stroke: "var(--today)", "stroke-width": 2, "stroke-linecap": "round" });
-  todayDot = el(topG, "circle", { cx: pt(OUTER, a)[0], cy: pt(OUTER, a)[1], r: 4, fill: "var(--today)" });
+  // Kontur i bakgrundsfärg så att linjen skiljer sig mot alla LP-färger. Linjen slutar vid bandet och
+  // pricken ligger utanför ringen, så att månadsnamnet däremellan inte korsas.
+  line(topG, INNER, THICK_OUT, a, { stroke: "var(--bg)", "stroke-width": 4, "stroke-linecap": "round" });
+  line(topG, INNER, THICK_OUT, a, { stroke: "var(--today)", "stroke-width": 2, "stroke-linecap": "round" });
+  todayDot = el(topG, "circle", { cx: pt(OUTER + 8, a)[0], cy: pt(OUTER + 8, a)[1], r: 4, fill: "var(--today)" });
 }
 
 // ============ Vy, zoom och rörelse ============
 const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
 // f: fokusvinkeln på hjulet. off: hela varv som gör att vridningen går kortaste vägen (se zoomTo).
 const view = { z: 0, f: todayInYear ? centerAngle(TODAY) : 0, off: 0 };
-let mode = "year", anim = null, K = 1, VB = [0, 0, 800, 800], rot = 0;
+let mode = "year", K = 1, VB = [0, 0, 800, 800], rot = 0;
+let lastK = NaN;   // etiketternas storlek och synlighet skrivs bara om när skalan har ändrats
+const ui = { top: 64, cardTop: innerHeight - 200 };   // mäts i measureUI
 
-// Inzoomad skala är konstant (beror bara på skärmstorlek). Bandet står lodrätt, så bredden
-// måste rymma ringen och rubrikerna utanför, och höjden ett rimligt antal dagar.
-const kZoom = () => Math.max((RC - INNER + 12) / Math.max(innerWidth - CALLOUT_PX, 160), 300 / innerHeight);
+// Inzoomad skala är konstant (beror bara på skärmstorlek). Telefon: en dag är DAY_PX hög vid dagnumren.
+// Bredare skärmar: bredden rymmer ringen och rubrikerna utanför, höjden ett rimligt antal dagar.
+const kZoom = () => narrow()
+  ? 353 * DPD / DAY_PX
+  : Math.max((RC - INNER + 12) / Math.max(innerWidth - CALLOUT_PX, 160), 300 / innerHeight);
 
 function layoutCallouts(k) {
   leaderG.replaceChildren();
+  lastK = NaN;
   for (const c of callouts) c.l.kMax = -1;
+  if (narrow()) return;
   const out = callouts.filter(c => k > c.inside.kMax).sort((p, q) => q.a - p.a);
   // Rubrikerna visas bara i dag-läget, där de alltid har samma riktning på skärmen
   const cs = () => [Math.abs(Math.cos(FOCUS_A)), Math.abs(Math.sin(FOCUS_A))];
@@ -228,8 +239,9 @@ function layoutCallouts(k) {
 
 const stripes = document.getElementById("stripes");
 function render() {
-  const W = innerWidth, H = innerHeight;
-  const k0 = 790 / Math.min(W, H), k1 = kZoom(), z = view.z;
+  const W = innerWidth, H = innerHeight, z = view.z;
+  // Årsvyn: hela ringen ryms med 12 px marginal på bredden, och i höjd som tidigare
+  const k0 = Math.max(2 * OUTER / Math.max(W - 24, 100), 790 / H), k1 = kZoom();
   K = k0 * Math.pow(k1 / k0, z);
 
   // Hjulet vrids i takt med zoomen, så att fokusdagen hamnar vid FOCUS_A. Utzoomat är vintern uppåt.
@@ -238,9 +250,11 @@ function render() {
   world.setAttribute("transform", `rotate(${deg} ${cx} ${cy})`);
   world.style.setProperty("--unrot", `${-deg}deg`);
 
-  // Kameran: bandet och rubrikerna centreras på bredden, fokuslinjen mitt i ytan ovanför kortet
-  const inner = INNER - 6, outer = RC + (CALLOUT_PX + 8) * k1;
-  const focusY = (TOP_UI + H - CARD_UI) / 2;
+  // Kameran: fokuslinjen mitt i ytan mellan verktygsfältet och kortet. Telefonen har dagnumren vid
+  // vänsterkanten; bredare skärmar centrerar bandet och rubrikerna på bredden.
+  const outer = narrow() ? DAY_EDGE : RC + (CALLOUT_PX + 8) * k1;
+  const inner = narrow() ? DAY_EDGE - W * k1 : INNER - 6;
+  const focusY = (ui.top + ui.cardTop) / 2;
   const x = cx - (inner + outer) / 2 * z, y = cy - (focusY - H / 2) * K * z;
   VB = [x - W * K / 2, y - H * K / 2, W * K, H * K];
   svg.setAttribute("viewBox", VB.join(" "));
@@ -248,17 +262,22 @@ function render() {
   const zo = clamp((view.z - .35) / .4, 0, 1);
   detail.style.opacity = zo; detail.style.display = zo > 0 ? "" : "none";
   overview.style.opacity = 1 - zo; overview.style.display = zo < 1 ? "" : "none";
-  for (const l of labels) {
-    l.el.setAttribute("font-size", l.px * K);
-    l.el.style.display = K <= l.kMax ? "" : "none";
+  // Under drag och glid i dag-läget är K oförändrad, och då behöver ingen etikett röras
+  if (K !== lastK) {
+    lastK = K;
+    for (const l of labels) {
+      l.el.setAttribute("font-size", l.px * K);
+      l.el.style.display = K <= l.kMax ? "" : "none";
+    }
+    stripes.setAttribute("patternTransform", `rotate(45) scale(${K})`);
+    if (todayDot) todayDot.setAttribute("r", 4 * K);
+    for (const d of eventDots) d.setAttribute("r", 3.5 * K);
+    if (todayNum) {
+      todayNum.circle.setAttribute("r", 8 * K);
+      todayNum.circle.style.display = K <= todayNum.label.kMax ? "" : "none";
+    }
   }
-  stripes.setAttribute("patternTransform", `rotate(45) scale(${K})`);
-  if (todayDot) todayDot.setAttribute("r", 4 * K);
-  for (const d of eventDots) d.setAttribute("r", 3.5 * K);
-  if (todayNum) {
-    todayNum.circle.setAttribute("r", 9 * K);
-    todayNum.circle.style.display = K <= todayNum.label.kMax ? "" : "none";
-  }
+  if (todayDot) todayDot.style.opacity = 1 - zo;   // i dag-läget markeras idag av cirkeln runt dagnumret
 
   const [lx1, ly1] = pt(INNER, view.f), [lx2, ly2] = pt(OUTER, view.f);
   Object.entries({ x1: lx1, y1: ly1, x2: lx2, y2: ly2 }).forEach(([k, v]) => focusLine.setAttribute(k, v));
@@ -266,32 +285,39 @@ function render() {
   if (zo > 0) updateCard(dayAt(view.f));
 }
 
+// Zoom (z) och fokus (f) animeras var för sig i samma bildrutsloop, så att ett drag kan ta över
+// fokus utan att avbryta en pågående zoom.
 const ease = k => 1 - Math.pow(1 - k, 4);
+const tweens = { z: null, f: null };
+let frame = 0;
+function tween(key, to, dur) {
+  if (reduceMotion || dur <= 0) { tweens[key] = null; view[key] = to; }
+  else tweens[key] = { from: view[key], to, t0: performance.now(), dur };
+  if (!frame) frame = requestAnimationFrame(tick);
+}
+function tick(now) {
+  frame = 0;
+  for (const key of ["z", "f"]) {
+    const tw = tweens[key];
+    if (!tw) continue;
+    const k = clamp((now - tw.t0) / tw.dur, 0, 1);
+    view[key] = tw.from + (tw.to - tw.from) * ease(k);
+    if (k === 1) tweens[key] = null;
+  }
+  render();
+  if (tweens.z || tweens.f) frame = requestAnimationFrame(tick);
+}
+const stopFocus = () => { tweens.f = null; };
 function animateTo(z, f, dur = 520) {
-  cancelAnimationFrame(anim);
-  const z0 = view.z, f0 = view.f;
-  const df = wrapAngle(f - f0);   // kortaste vägen
-  const t0 = performance.now();
-  if (reduceMotion) dur = 0;
-  (function step(now) {
-    const k = dur ? clamp((now - t0) / dur, 0, 1) : 1, e = ease(k);
-    view.z = z0 + (z - z0) * e;
-    view.f = f0 + df * e;
-    render();
-    if (k < 1) anim = requestAnimationFrame(step);
-  })(t0);
+  tween("z", z, dur);
+  tween("f", view.f + wrapAngle(f - view.f), dur);   // kortaste vägen
 }
-const snap = (dur = 320) => animateTo(1, centerAngle(dayAt(view.f)), dur);
-function glide(v) {
-  let last = performance.now();
-  const step = now => {
-    const dt = Math.min(32, now - last); last = now;
-    view.f += v * dt; v *= Math.pow(.995, dt);
-    render();
-    if (Math.abs(v) > 4e-5) anim = requestAnimationFrame(step); else snap();
-  };
-  anim = requestAnimationFrame(step);
-}
+const snap = (dur = 320) => tween("f", centerAngle(dayAt(view.f)), dur);
+// Släpp med fart: hjulet rullar ut och stannar mitt på den dag det skulle ha stannat på, i en enda
+// rörelse utan ryck tillbaka. Ease-out-kurvan startar med farten 4 · sträcka / tid, så sträckan
+// v · 200 ms över 800 ms börjar med samma fart som fingret hade.
+const fling = v => tween("f", centerAngle(dayAt(view.f + v * 200)), 800);
+const FLING_PX = .35;   // px/ms som krävs för att hjulet ska rulla vidare efter släpp
 
 // ============ Lägen ============
 const $ = id => document.getElementById(id);
@@ -417,14 +443,14 @@ svg.addEventListener("pointermove", ev => {
   if (ev.pointerId !== drag.id) return;
   if (!drag.moved && Math.hypot(ev.clientX - drag.x0, ev.clientY - drag.y0) > 6) {
     drag.moved = true;
-    if (mode === "month") { cancelAnimationFrame(anim); svg.classList.add("dragging"); }
+    if (mode === "month") { stopFocus(); svg.classList.add("dragging"); }
   }
   if (drag.moved && mode === "month") {
     const mx = ev.clientX - drag.lx, my = ev.clientY - drag.ly, dt = Math.max(1, ev.timeStamp - drag.lt);
     // Bandet står lodrätt: svep uppåt snurrar hjulet så att senare dagar kommer upp till fokuslinjen
     const df = my * K / drag.r;
     view.f += df;
-    drag.v = .6 * (df / dt) + .4 * drag.v;
+    drag.v = .6 * (my / dt) + .4 * drag.v;   // px/ms, så att tröskeln inte beror på skalan
     render();
   }
   drag.lx = ev.clientX; drag.ly = ev.clientY; drag.lt = ev.timeStamp;
@@ -438,7 +464,7 @@ function endDrag(ev, cancelled) {
     if (h.r < INNER) { if (mode === "month") zoomOut(); }
     else if (h.r <= OUTER + 30) zoomTo(h.t);
   } else if (mode === "month") {
-    if (!reduceMotion && Math.abs(d.v) > 3e-4 && ev.timeStamp - d.lt < 80) glide(d.v); else snap();
+    if (!reduceMotion && Math.abs(d.v) > FLING_PX && ev.timeStamp - d.lt < 80) fling(d.v * K / d.r); else snap();
   }
 }
 svg.addEventListener("pointerup", ev => endDrag(ev, false));
@@ -456,7 +482,7 @@ svg.addEventListener("wheel", ev => {
     return;
   }
   if (mode !== "month") return;
-  cancelAnimationFrame(anim);
+  stopFocus();
   const delta = Math.abs(ev.deltaX) > Math.abs(ev.deltaY) ? ev.deltaX : ev.deltaY;
   view.f -= delta * (ev.deltaMode === 1 ? 16 : 1) * K / R;
   render();
@@ -473,7 +499,20 @@ addEventListener("keydown", e => {
     animateTo(1, centerAngle(dayAt(view.f) + step * DAY), 260);
   }
 });
-addEventListener("resize", () => { layoutCallouts(kZoom()); render(); });
+addEventListener("resize", () => { layoutCallouts(kZoom()); measureUI(); });
+
+// Mät hur mycket verktygsfältet och kortet täcker. Kortets händelselista räknas inte in,
+// annars skulle fokuslinjen flytta sig när man bläddrar förbi en dag med händelser.
+function measureUI() {
+  const card = $("card"), list = $("cEvents");
+  const listH = list.childElementCount ? list.offsetHeight + parseFloat(getComputedStyle(list).marginTop) : 0;
+  ui.top = document.querySelector(".toolbar").getBoundingClientRect().bottom;
+  ui.cardTop = innerHeight - parseFloat(getComputedStyle(card).bottom) - (card.offsetHeight - listH);
+  render();
+}
+const uiObserver = new ResizeObserver(measureUI);
+uiObserver.observe(document.querySelector(".toolbar"));
+uiObserver.observe($("card"));
 
 // ============ Händelser ============
 // All läsning och skrivning av händelser går genom loadEvents och saveEvents,
@@ -624,7 +663,7 @@ fDelete.onclick = () => {
 let downOutside = false;
 sheet.addEventListener("pointerdown", e => downOutside = e.target === sheet);
 sheet.addEventListener("click", e => { if (e.target === sheet && downOutside && !dirty()) sheet.close(); });
-$("addBtn").onclick = () => { cancelAnimationFrame(anim); snap(); openSheet(dayAt(view.f)); };
+$("addBtn").onclick = () => { snap(); openSheet(dayAt(view.f)); };
 
 // ============ Säkerhetskopia ============
 // Händelserna finns bara på enheten. Export och import är det som räddar dem vid byte av telefon eller rensad data.

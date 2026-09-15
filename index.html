@@ -143,10 +143,18 @@
   #tip.show { opacity: 1; }
   #tip b { display: block; font-weight: 600; }
   #tip span { color: var(--secondary); font-size: 12px; }
+  /* Ren text, utan yta: ett tips, inte en knapp */
   #coach { position: fixed; left: 50%; bottom: max(24px, env(safe-area-inset-bottom)); transform: translateX(-50%); z-index: 3;
-           border-radius: 10px; padding: 8px 16px; font-weight: 400; color: var(--secondary); white-space: nowrap; transition: opacity .3s;
-           box-shadow: none; }   /* ett tips, inte en knapp */
-  #coach.gone, body.month #coach { opacity: 0; pointer-events: none; }
+           padding: 8px 16px; color: var(--secondary); white-space: nowrap; pointer-events: none; transition: opacity .3s; }
+  #coach.gone, body.month #coach { opacity: 0; }
+
+  /* Appen används bara i stående läge på telefon. Manifestet låser installerade appar på Android;
+     iOS och vanliga webbläsare ignorerar det, så där täcks skärmen med en uppmaning. */
+  #rotate { display: none; }
+  @media (orientation: landscape) and (pointer: coarse) and (max-height: 500px) {
+    #rotate { position: fixed; inset: 0; z-index: 20; display: grid; place-items: center; padding: 24px;
+              background: var(--bg); color: var(--secondary); font-size: 15px; text-align: center; }
+  }
 
   @media (prefers-reduced-motion: reduce) { *, *::before { transition: none !important; animation: none !important; } }
 </style>
@@ -217,7 +225,8 @@
   <kbd>Esc</kbd><span>År</span>
 </div>
 <div id="tip" class="glass" role="tooltip"><b></b><span></span></div>
-<div id="coach" class="glass"></div>
+<div id="coach"></div>
+<div id="rotate">Vrid telefonen till stående läge</div>
 
 <script src="data.js"></script>
 <script src="time.js"></script>
