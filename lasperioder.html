@@ -11,8 +11,11 @@
     --separator: rgba(60,60,67,.16); --track: #e8e8ed; --weekend: rgba(60,60,67,.07);
     --material: rgba(255,255,255,.72); --material-border: rgba(0,0,0,.06); --thumb: #fff;
     --shadow: 0 12px 32px rgba(0,0,0,.08), 0 1px 2px rgba(0,0,0,.06);
-    --lp1: #e67e00; --lp2: #007aff; --lp3: #0f9bb5; --lp4: #1fa447;
-    --nolle: #af52de; --re: #8e8e93; --today: #ff3b30; --accent: #007aff;
+    /* Samma regel i båda lägena: systemfärger som fyllning, kontrasten löses med textfärgen */
+    --lp1: #ff9500; --lp2: #4da3ff; --lp3: #30b0c7; --lp4: #34c759;
+    --nolle: #af52de; --re: #8e8e93; --on-fill: rgba(0,0,0,.85);
+    /* --today för markeringar, --today-ink för text och ytor med text */
+    --today: #ff3b30; --today-ink: #d70015; --accent: #0066cc;
     --sheet: #fff; --field: rgba(118,118,128,.12);
   }
   @media (prefers-color-scheme: dark) {
@@ -21,8 +24,9 @@
       --separator: rgba(84,84,88,.55); --track: #161618; --weekend: rgba(255,255,255,.05);
       --material: rgba(38,38,40,.72); --material-border: rgba(255,255,255,.08); --thumb: #636366;
       --shadow: 0 12px 32px rgba(0,0,0,.5);
-      --lp1: #ff9f0a; --lp2: #0a84ff; --lp3: #40c8e0; --lp4: #30d158;
-      --nolle: #bf5af2; --re: #7c7c80; --today: #ff453a; --accent: #0a84ff;
+      --lp1: #ff9f0a; --lp2: #4da3ff; --lp3: #40c8e0; --lp4: #30d158;
+      --nolle: #bf5af2; --re: #7c7c80; --on-fill: rgba(0,0,0,.85);
+      --today: #ff453a; --today-ink: #ff453a; --accent: #0a84ff;
       --sheet: #1c1c1e; --field: rgba(118,118,128,.24);
     }
   }
@@ -57,20 +61,22 @@
                       transition: transform .35s cubic-bezier(.3,.8,.2,1); }
   body.month .segmented .thumb { transform: translateX(100%); }
   .pill { appearance: none; color: var(--accent); font-weight: 600; padding: 7px 14px; border-radius: 10px; cursor: pointer; }
+  @media (pointer: coarse) { .segmented button, .pill { min-height: 44px; } }
 
   /* Infokort (månadsvy) */
   #card { position: fixed; left: 50%; bottom: max(16px, env(safe-area-inset-bottom)); z-index: 4;
-          width: min(400px, calc(100vw - 32px)); border-radius: 18px; padding: 13px 16px 12px;
+          width: min(400px, calc(100vw - 32px)); border-radius: 16px; padding: 16px;
           opacity: 0; transform: translate(-50%, 16px); pointer-events: none;
           transition: opacity .25s, transform .4s cubic-bezier(.3,.8,.2,1); }
   body.month #card { opacity: 1; transform: translate(-50%, 0); pointer-events: auto; }
-  #cEvents:not(:empty) { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--separator);
-                         display: grid; gap: 10px; max-height: 32vh; overflow: auto; }
+  #cEvents:not(:empty) { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--separator);
+                         display: grid; gap: 12px; max-height: 32vh; overflow: auto; }
   .ev { display: grid; grid-template-columns: 1fr auto; gap: 2px 12px; align-items: baseline; }
   .ev h3 { margin: 0; font-size: 15px; font-weight: 600; overflow-wrap: anywhere; }
   .ev p { grid-column: 1 / -1; margin: 0; color: var(--secondary); white-space: pre-wrap; overflow-wrap: anywhere; }
   .ev button { appearance: none; border: 0; background: none; color: var(--accent); font-weight: 500; padding: 0; cursor: pointer; }
-  .add { width: 100%; margin-top: 10px; appearance: none; border: 0; border-radius: 10px; padding: 9px;
+  @media (pointer: coarse) { .ev button { padding: 8px; margin: -8px; } }
+  .add { width: 100%; margin-top: 12px; appearance: none; border: 0; border-radius: 10px; padding: 9px;
          background: color-mix(in srgb, var(--accent) 12%, transparent); color: var(--accent); font-weight: 600; cursor: pointer; }
   .add:hover { background: color-mix(in srgb, var(--accent) 18%, transparent); }
 
@@ -80,46 +86,50 @@
   dialog[open] { animation: pop .28s cubic-bezier(.3,.8,.2,1); }
   @keyframes pop { from { opacity: 0; transform: scale(.96); } }
   dialog::backdrop { background: rgba(0,0,0,.28); -webkit-backdrop-filter: blur(3px); backdrop-filter: blur(3px); }
-  #sheetForm { padding: 18px; display: grid; gap: 10px; }
-  #sheetForm h2 { margin: 0; font-size: 17px; font-weight: 650; text-align: center; }
-  #sheetDate { margin: -6px 0 4px; text-align: center; color: var(--secondary); font-size: 12px; }
-  #sheetForm input, #sheetForm textarea { width: 100%; font: inherit; font-size: 15px; color: var(--fg); background: var(--field);
+  #sheetForm { padding: 16px; display: grid; gap: 8px; }
+  .sheet-head { display: grid; gap: 2px; margin-bottom: 4px; text-align: center; }
+  #sheetForm h2 { margin: 0; font-size: 15px; font-weight: 600; }
+  #sheetDate { margin: 0; color: var(--secondary); font-size: 12px; }
+  /* 16px hindrar iOS från att zooma vid fokus */
+  #sheetForm input, #sheetForm textarea { width: 100%; min-height: 44px; font: inherit; font-size: 16px; color: var(--fg); background: var(--field);
     border: 1px solid transparent; border-radius: 10px; padding: 10px 12px; resize: vertical; }
   #sheetForm input:focus, #sheetForm textarea:focus { outline: none; border-color: var(--accent);
     box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 25%, transparent); }
   .actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 4px; }
-  .actions button { appearance: none; border: 0; border-radius: 10px; padding: 10px; font-weight: 600; cursor: pointer; }
-  #sheetError { margin: 0; text-align: center; color: var(--today); font-size: 12px; font-weight: 500; }
+  .actions button { appearance: none; border: 0; border-radius: 10px; min-height: 44px; padding: 10px; font-weight: 600; cursor: pointer; }
+  #sheetError { margin: 0; text-align: center; color: var(--today-ink); font-size: 12px; font-weight: 500; }
   #fCancel { background: var(--field); color: var(--fg); }
   #fSave { background: var(--accent); color: #fff; }
   #fSave:disabled { opacity: .4; cursor: default; }
-  .danger { appearance: none; border: 0; background: none; color: var(--today); font-weight: 600; padding: 9px; border-radius: 10px; cursor: pointer; }
-  .danger.confirm { background: var(--today); color: #fff; }
+  .danger { appearance: none; border: 0; background: none; color: var(--today-ink); font-weight: 600; min-height: 44px; margin-top: 8px;
+            padding: 10px; border-radius: 10px; cursor: pointer; }
+  .danger.confirm { background: var(--today-ink); color: #fff; }
   .card-top { display: flex; justify-content: space-between; gap: 12px; color: var(--secondary); font-size: 12px; font-weight: 500; }
-  .card-title { display: flex; align-items: center; gap: 8px; margin-top: 3px; font-size: 19px; font-weight: 650; letter-spacing: -.012em; }
+  .card-title { display: flex; align-items: center; gap: 8px; margin-top: 4px; font-size: 19px; font-weight: 600; letter-spacing: -.012em; }
   .dot { width: 10px; height: 10px; border-radius: 50%; flex: none; }
-  .tag { margin-left: auto; font-size: 11px; font-weight: 700; color: #fff; background: var(--today); padding: 2px 7px; border-radius: 6px; }
-  .bar { height: 4px; border-radius: 2px; background: var(--separator); margin: 10px 0 7px; overflow: hidden; }
+  .tag { margin-left: auto; font-size: 11px; font-weight: 700; color: #fff; background: var(--today-ink); padding: 2px 7px; border-radius: 6px; }
+  .bar { height: 4px; border-radius: 2px; background: var(--separator); margin: 12px 0 8px; overflow: hidden; }
   .bar span { display: block; height: 100%; border-radius: 2px; }
   .card-sub { display: flex; justify-content: space-between; gap: 12px; color: var(--secondary); font-size: 12px; }
   .card-sub b { color: var(--fg); font-weight: 600; }
 
   /* Kortkommandon (dagvy, bara med muspekare och brett fönster) */
   #keys { position: fixed; left: max(16px, env(safe-area-inset-left)); bottom: max(16px, env(safe-area-inset-bottom));
-          z-index: 3; border-radius: 14px; padding: 10px 12px; display: none; grid-template-columns: auto auto; gap: 6px 10px;
+          z-index: 3; border-radius: 12px; padding: 12px; display: none; grid-template-columns: auto auto; gap: 6px 10px;
           font-size: 12px; color: var(--secondary); opacity: 0; pointer-events: none; transition: opacity .25s; }
   #keys kbd { font: inherit; font-weight: 600; color: var(--fg); justify-self: end; }
   @media (hover: hover) and (min-width: 900px) { #keys { display: grid; } }
   body.month #keys { opacity: 1; }
 
   /* Verktygstips och introduktion */
-  #tip { position: fixed; left: 0; top: 0; z-index: 6; border-radius: 10px; padding: 7px 10px; white-space: nowrap;
+  #tip { position: fixed; left: 0; top: 0; z-index: 6; border-radius: 12px; padding: 8px 12px; white-space: nowrap;
          pointer-events: none; opacity: 0; transition: opacity .12s; }
   #tip.show { opacity: 1; }
   #tip b { display: block; font-weight: 600; }
   #tip span { color: var(--secondary); font-size: 12px; }
   #coach { position: fixed; left: 50%; bottom: max(24px, env(safe-area-inset-bottom)); transform: translateX(-50%); z-index: 3;
-           border-radius: 999px; padding: 8px 16px; font-weight: 500; color: var(--secondary); white-space: nowrap; transition: opacity .3s; }
+           border-radius: 10px; padding: 8px 16px; font-weight: 400; color: var(--secondary); white-space: nowrap; transition: opacity .3s;
+           box-shadow: none; }   /* ett tips, inte en knapp */
   #coach.gone, body.month #coach { opacity: 0; pointer-events: none; }
 
   @media (prefers-reduced-motion: reduce) { *, *::before { transition: none !important; animation: none !important; } }
@@ -129,7 +139,7 @@
 <svg id="cal" role="application" aria-label="Cirkelkalender över läsåret 2026/27. Vinter upp, höst höger, sommar ner, vår vänster.">
   <defs>
     <pattern id="stripes" patternUnits="userSpaceOnUse" width="7" height="7" patternTransform="rotate(45)">
-      <rect width="2.5" height="7" fill="#fff" fill-opacity=".3"/>
+      <rect width="2.5" height="7" fill="#fff" fill-opacity=".18"/>
     </pattern>
   </defs>
 </svg>
@@ -154,8 +164,10 @@
 
 <dialog id="sheet" aria-labelledby="sheetTitle">
   <form id="sheetForm">
-    <h2 id="sheetTitle">Ny händelse</h2>
-    <p id="sheetDate"></p>
+    <div class="sheet-head">
+      <h2 id="sheetTitle">Ny händelse</h2>
+      <p id="sheetDate"></p>
+    </div>
     <input id="fTitle" placeholder="Titel" maxlength="80" autocomplete="off">
     <textarea id="fDesc" placeholder="Beskrivning" rows="4"></textarea>
     <p id="sheetError" role="alert" hidden>Kunde inte spara. Webbläsaren tillåter inte lagring just nu.</p>
@@ -372,19 +384,18 @@ for (let t = START; t < END; t += DAY) {
   const d = new Date(t), wd = d.getUTCDay(), a = angT(t), weekend = wd === 0 || wd === 6;
   if (weekend) el(detailBg, "path", { d: sectorD(330, OUTER, a, angT(t + DAY)), fill: "var(--weekend)" });
   line(detailBg, wd === 1 ? THICK_OUT : 335, OUTER, a, { stroke: "var(--separator)", "stroke-width": wd === 1 ? 1 : .75 });
-  if (wd === 1) label(detailText, 302, angT(t + 3.5 * DAY), [["v" + isoWeek(t), 11, 600]], { arc: 302 * 7 * DPD, thick: 20, fill: "var(--tertiary)" });
+  if (wd === 1) label(detailText, 302, angT(t + 3.5 * DAY), [["v" + isoWeek(t), 11, 600]], { arc: 302 * 7 * DPD, thick: 20, fill: "var(--secondary)" });
   const isToday = t === TODAY;
   const fit = { arc: 353 * DPD, thick: 18, fill: isToday ? "#fff" : weekend ? "var(--tertiary)" : "var(--secondary)" };
   if (isToday) {
     const [x, y] = pt(353, centerAngle(t));
-    todayNum = { circle: el(detailText, "circle", { cx: x, cy: y, r: 9, fill: "var(--today)" }) };
+    todayNum = { circle: el(detailText, "circle", { cx: x, cy: y, r: 9, fill: "var(--today-ink)" }) };
   }
   const l = label(detailText, 353, centerAngle(t), [[String(d.getUTCDate()), 10, isToday ? 700 : 500]], fit);
   if (isToday) todayNum.label = l;
 }
 
 // Studentringen (tjock)
-const white2 = "rgba(255,255,255,.85)";
 for (const s of SEG) {
   const a0 = angT(s.t0), a1 = angT(s.t1), mid = (a0 + a1) / 2, d = sectorD(THICK_IN, THICK_OUT, a0, a1);
   s.g = el(base, "g", { class: "seg" });
@@ -393,10 +404,10 @@ for (const s of SEG) {
   if (s.type !== "lekt") el(s.g, "path", { d, fill: "url(#stripes)" });
   el(s.g, "path", { d, fill: "none", stroke: "var(--track)", "stroke-width": 2, ...NSS });
 
-  const fit = { arc: THICK_MID * nDays(s) * DPD, thick: THICK_OUT - THICK_IN, fill: "#fff" };
+  const fit = { arc: THICK_MID * nDays(s) * DPD, thick: THICK_OUT - THICK_IN, fill: "var(--on-fill)" };
   const title = s.type === "lekt" ? `LP${s.lp} · Lektioner` : s.type === "tenta" ? "Tenta-P" : "Omtenta-P";
   label(overview, THICK_MID, mid, [[s.type === "lekt" ? `LP${s.lp}` : title.replace("-P", ""), s.type === "lekt" ? 17 : 11, 700]], fit);
-  const inside = label(detailText, THICK_MID, mid, [[title, s.type === "lekt" ? 14 : 13, 700], [range(s), 11, 500, white2]], fit);
+  const inside = label(detailText, THICK_MID, mid, [[title, 13, 700], [range(s), 11, 500]], fit);
   callout(inside, mid, [[segTitle(s), 12, 600], [range(s), 11, 400, "var(--secondary)"]], segColor(s));
 }
 
@@ -405,7 +416,7 @@ for (const b of BRK) {
   const mid = (angT(b.t0) + angT(b.t1)) / 2;
   const fit = { arc: THICK_MID * nDays(b) * DPD, thick: THICK_OUT - THICK_IN, fill: "var(--secondary)" };
   label(overview, THICK_MID, mid, [[b.name, 12, 600]], fit);
-  const inside = label(detailText, THICK_MID, mid, [[b.name, 13, 600], [range(b), 11, 400, "var(--tertiary)"]], fit);
+  const inside = label(detailText, THICK_MID, mid, [[b.name, 13, 600], [range(b), 11, 400, "var(--secondary)"]], fit);
   callout(inside, mid, [[b.name, 12, 600], [range(b), 11, 400, "var(--secondary)"]], "var(--tertiary)");
 }
 
@@ -414,7 +425,7 @@ for (const o of OFF) {
   const a0 = angT(o.t0), a1 = angT(o.t1);
   o.g = el(base, "g", { class: "seg" });
   el(o.g, "path", { d: sectorD(THIN_IN, THIN_OUT, a0, a1), fill: o.c, stroke: "var(--track)", "stroke-width": 1.5, ...NSS });
-  label(detailText, 172, (a0 + a1) / 2, [[o.short, 11, 600, o.c], [range(o), 10, 400, "var(--tertiary)"]],
+  label(detailText, 172, (a0 + a1) / 2, [[o.short, 11, 600, "var(--fg)"], [range(o), 10, 400, "var(--secondary)"]],
         { arc: 172 * nDays(o) * DPD, thick: 26 });
 }
 
@@ -431,13 +442,13 @@ function buildCenter() {
   }
   const info = describe(TODAY);
   const lines = [
-    ["IDAG", 11, 700, "var(--today)"],
+    ["IDAG", 11, 700, "var(--today-ink)"],
     [`v. ${info.week}`, 34, 700],
-    [info.title, 13, 600, "var(--secondary)"],
-    [info.next ? `${info.next[0]} ${info.next[1]}` : "", 12, 400, "var(--tertiary)"],
+    [info.title, 15, 600],
+    [info.next ? `${info.next[0]} ${info.next[1]}` : "", 12, 400, "var(--secondary)"],
   ];
   const ev = events.filter(e => e.date >= TODAY && e.date < END).sort((a, b) => a.date - b.date)[0];
-  if (ev) lines.push([`${trunc(ev.title, 18)} ${until((ev.date - TODAY) / DAY)}`, 12, 400, "var(--tertiary)"]);
+  if (ev) lines.push([`${trunc(ev.title, 18)} ${until((ev.date - TODAY) / DAY)}`, 12, 400, "var(--secondary)"]);
   centerLabel = makeText(overview, cx, cy, lines, "var(--fg)");
 }
 
@@ -446,6 +457,8 @@ const focusLine = el(topG, "line", { stroke: "var(--fg)", "stroke-opacity": .45,
 let todayDot = null;
 if (todayInYear) {
   const a = centerAngle(TODAY);
+  // Kontur i bakgrundsfärg så att linjen skiljer sig mot alla LP-färger
+  line(topG, INNER, OUTER, a, { stroke: "var(--bg)", "stroke-width": 4, "stroke-linecap": "round" });
   line(topG, INNER, OUTER, a, { stroke: "var(--today)", "stroke-width": 2, "stroke-linecap": "round" });
   todayDot = el(topG, "circle", { cx: pt(OUTER, a)[0], cy: pt(OUTER, a)[1], r: 4, fill: "var(--today)" });
 }
