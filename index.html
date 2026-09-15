@@ -50,6 +50,8 @@
   body.month #cal { cursor: grab; }
   body.month #cal.dragging { cursor: grabbing; }
   text { pointer-events: none; }
+  /* Hjulet vrids i dag-läget; varje text vrids tillbaka runt sin egen mitt och står upprätt */
+  #world text { transform-box: fill-box; transform-origin: center; transform: rotate(var(--unrot, 0deg)); }
   .seg { transition: filter .15s; }
   .seg.hover { filter: brightness(1.12) saturate(1.1); }
 

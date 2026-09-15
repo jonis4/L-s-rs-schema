@@ -1,6 +1,6 @@
 // Service worker: gör appen tillgänglig offline.
 // Höj VERSION vid varje ändring av någon fil nedan, annars fastnar användarna på gammal kod.
-const VERSION = "lasar-v1";
+const VERSION = "lasar-v2";
 const FILES = [
   "./", "index.html", "data.js", "time.js", "storage.js", "app.js", "manifest.webmanifest",
   "icons/icon.svg", "icons/icon-192.png", "icons/icon-512.png", "icons/icon-maskable-512.png", "icons/apple-touch-icon.png",

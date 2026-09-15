@@ -13,8 +13,28 @@ function load(files, prelude = "") {
 
 const plain = x => JSON.parse(JSON.stringify(x));   // värden från vm-kontexten jämförs som vanlig data
 const get = load(["data.js", "time.js"]);
-const { toT, DAY, START, END, DAYS, isoWeek, dayAt, centerAngle, describe, range, fromToday, until } =
-  get("({ toT, DAY, START, END, DAYS, isoWeek, dayAt, centerAngle, describe, range, fromToday, until })");
+const { toT, DAY, START, END, DAYS, isoWeek, dayAt, centerAngle, describe, range, fromToday, until, wrapAngle } =
+  get("({ toT, DAY, START, END, DAYS, isoWeek, dayAt, centerAngle, describe, range, fromToday, until, wrapAngle })");
+
+test("vinklar viks till högst ett halvt varv åt något håll", () => {
+  const close = (a, b) => assert.ok(Math.abs(a - b) < 1e-9, `${a} ≠ ${b}`);
+  close(wrapAngle(Math.PI / 2), Math.PI / 2);
+  close(wrapAngle(-Math.PI / 2), -Math.PI / 2);
+  close(wrapAngle(3 * Math.PI / 2), -Math.PI / 2);
+  close(wrapAngle(-7 * Math.PI / 2), Math.PI / 2);
+  close(wrapAngle(20 * Math.PI + .1), .1);            // efter många varv av glid i dag-läget
+  for (let a = -30; a < 30; a += .37) {
+    const w = wrapAngle(a);
+    assert.ok(w >= -Math.PI && w < Math.PI);
+    close(Math.cos(w), Math.cos(a));
+  }
+});
+
+test("en dag hittas från vinkeln även när hjulet har snurrat flera varv", () => {
+  const t = toT([2026, 10, 12]);
+  assert.equal(dayAt(centerAngle(t) + 6 * Math.PI), t);
+  assert.equal(dayAt(centerAngle(t) - 4 * Math.PI), t);
+});
 
 test("läsåret 26/27 har 365 dagar och slutar 31 juli", () => {
   assert.equal(DAYS, 365);

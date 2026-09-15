@@ -9,6 +9,7 @@ const REF = toT(YEAR.top);                       // står rakt upp
 const DPD = 2 * Math.PI / DAYS;                  // radianer per dag
 const MONTHS = ["jan","feb","mar","apr","maj","jun","jul","aug","sep","okt","nov","dec"];
 
+const wrapAngle = a => ((a + Math.PI) % (2 * Math.PI) + 2 * Math.PI) % (2 * Math.PI) - Math.PI;   // till [−π, π)
 const angT = t => -((t - REF) / DAY) * DPD;      // tiden går moturs
 const centerAngle = t => angT(t + DAY / 2);
 const dayAt = a => START + ((Math.floor((REF - START) / DAY - a / DPD) % DAYS + DAYS) % DAYS) * DAY;
