@@ -18,7 +18,7 @@
   :root {
     --bg: #f5f5f7; --fg: #1d1d1f; --secondary: #6e6e73; --tertiary: #a1a1a6;
     --separator: rgba(60,60,67,.16); --track: #e8e8ed; --weekend: rgba(60,60,67,.07);
-    --material: rgba(255,255,255,.72); --material-border: rgba(0,0,0,.06); --thumb: #fff;
+    --material: rgba(255,255,255,.9); --material-border: rgba(0,0,0,.06); --thumb: #fff;
     --shadow: 0 12px 32px rgba(0,0,0,.08), 0 1px 2px rgba(0,0,0,.06);
     /* Samma regel i båda lägena: systemfärger som fyllning, kontrasten löses med textfärgen */
     --lp1: #ff9500; --lp2: #4da3ff; --lp3: #30b0c7; --lp4: #34c759;
@@ -31,7 +31,7 @@
     :root {
       --bg: #000; --fg: #f5f5f7; --secondary: #98989d; --tertiary: #636366;
       --separator: rgba(84,84,88,.55); --track: #161618; --weekend: rgba(255,255,255,.05);
-      --material: rgba(38,38,40,.72); --material-border: rgba(255,255,255,.08); --thumb: #636366;
+      --material: rgba(28,28,30,.9); --material-border: rgba(255,255,255,.08); --thumb: #636366;
       --shadow: 0 12px 32px rgba(0,0,0,.5);
       --lp1: #ff9f0a; --lp2: #4da3ff; --lp3: #40c8e0; --lp4: #30d158;
       --nolle: #bf5af2; --re: #7c7c80; --on-fill: rgba(0,0,0,.85);
@@ -55,8 +55,13 @@
   .seg { transition: filter .15s; }
   .seg.hover { filter: brightness(1.12) saturate(1.1); }
 
+  /* Tätt glas utan mättnad: färgen under (en LP, en tentaperiod) ska inte ge ytan en egen ton */
   .glass { background: var(--material); border: 1px solid var(--material-border); box-shadow: var(--shadow);
-           -webkit-backdrop-filter: blur(24px) saturate(180%); backdrop-filter: blur(24px) saturate(180%); }
+           -webkit-backdrop-filter: blur(20px); backdrop-filter: blur(20px); }
+  /* Dag-läget: ringen tonar bort bakom verktygsfältet i stället för att synas igenom knapparna */
+  body::before { content: ""; position: fixed; inset: 0 0 auto; height: calc(max(14px, env(safe-area-inset-top)) + 72px); z-index: 4;
+                 background: linear-gradient(var(--bg) 55%, transparent); pointer-events: none; opacity: 0; transition: opacity .25s; }
+  body.month::before { opacity: 1; }
   button { font: inherit; }
   button:focus-visible { outline: 3px solid color-mix(in srgb, var(--accent) 55%, transparent); outline-offset: 2px; }
 
@@ -99,11 +104,13 @@
   dialog::backdrop { background: rgba(0,0,0,.28); -webkit-backdrop-filter: blur(3px); backdrop-filter: blur(3px); }
   .sheet-form { padding: 16px; display: grid; gap: 8px; }
   .sheet-head { display: grid; gap: 2px; margin-bottom: 4px; text-align: center; }
-  .sheet-form h2 { margin: 0; font-size: 15px; font-weight: 600; }
+  .sheet-form h2 { margin: 0; font-size: 17px; font-weight: 600; }
   .sheet-head p { margin: 0; color: var(--secondary); font-size: 12px; }
   .wide { appearance: none; border: 0; border-radius: 10px; min-height: 44px; padding: 10px; font-weight: 600; cursor: pointer;
           background: var(--field); color: var(--fg); }
-  .wide.primary { margin-top: 8px; background: var(--accent); color: #fff; }
+  /* Säkerhetskopia: uppgiften (exportera) får tyngd, att stänga är bara en textknapp */
+  #exportBtn { background: color-mix(in srgb, var(--accent) 12%, transparent); color: var(--accent); }
+  .wide.primary { margin-top: 8px; background: none; color: var(--accent); }
   #backupStatus { margin: 0; text-align: center; color: var(--secondary); font-size: 12px; }
   #backupStatus:empty { display: none; }
   /* 16px hindrar iOS från att zooma vid fokus */
@@ -116,10 +123,11 @@
   #sheetError { margin: 0; text-align: center; color: var(--today-ink); font-size: 12px; font-weight: 500; }
   #fCancel { background: var(--field); color: var(--fg); }
   #fSave { background: var(--accent); color: #fff; }
-  #fSave:disabled { opacity: .4; cursor: default; }
+  #fSave:disabled { background: var(--field); color: var(--tertiary); cursor: default; }
   .danger { appearance: none; border: 0; background: none; color: var(--today-ink); font-weight: 600; min-height: 44px; margin-top: 8px;
             padding: 10px; border-radius: 10px; cursor: pointer; }
-  .danger.confirm { background: var(--today-ink); color: #fff; }
+  /* Tonad, så att Spara är den enda fyllda knappen i arket */
+  .danger.confirm { background: color-mix(in srgb, var(--today-ink) 14%, transparent); color: var(--today-ink); }
   .card-top { display: flex; justify-content: space-between; gap: 12px; color: var(--secondary); font-size: 12px; font-weight: 500; }
   .card-title { display: flex; align-items: center; gap: 8px; margin-top: 4px; font-size: 19px; font-weight: 600; letter-spacing: -.012em; }
   .dot { width: 10px; height: 10px; border-radius: 50%; flex: none; }

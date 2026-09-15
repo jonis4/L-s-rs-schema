@@ -100,11 +100,13 @@ const y0 = new Date(START).getUTCFullYear(), m0 = new Date(START).getUTCMonth();
 for (let i = 0; i < 12; i++) {
   const d0 = new Date(Date.UTC(y0, m0 + i, 1)), d1 = Date.UTC(y0, m0 + i + 1, 1);
   line(base, THICK_OUT, OUTER, angT(+d0), { stroke: "var(--separator)", "stroke-width": 1 });
-  label(base, 317, (angT(+d0) + angT(d1)) / 2, [[MONTHS[d0.getUTCMonth()].toUpperCase(), 12, 600]], { fill: "var(--secondary)" });
+  // Bara i årsvyn: i dag-läget hamnar namnet mitt i veckokolumnen, och kortet visar redan månaden
+  label(overview, 317, (angT(+d0) + angT(d1)) / 2, [[MONTHS[d0.getUTCMonth()].toUpperCase(), 12, 600]], { fill: "var(--secondary)" });
 }
 
 // Dagar, helger och veckor (månadsvy)
 let todayNum = null;
+const dayLabels = [];   // dagnummer i datumordning; vald dag markeras i updateCard
 for (let t = START; t < END; t += DAY) {
   const d = new Date(t), wd = d.getUTCDay(), a = angT(t), weekend = wd === 0 || wd === 6;
   if (weekend) el(detailBg, "path", { d: sectorD(330, OUTER, a, angT(t + DAY)), fill: "var(--weekend)" });
@@ -117,7 +119,8 @@ for (let t = START; t < END; t += DAY) {
     const [x, y] = pt(353, centerAngle(t));
     todayNum = { circle: el(detailText, "circle", { cx: x, cy: y, r: 9, fill: "var(--today-ink)" }) };
   }
-  const l = label(detailText, 353, centerAngle(t), [[String(d.getUTCDate()), 10, isToday ? 700 : 500]], fit);
+  const l = label(detailText, 353, centerAngle(t), [[String(d.getUTCDate()), 11, isToday ? 700 : 500]], fit);
+  dayLabels.push(l);
   if (isToday) todayNum.label = l;
 }
 
@@ -179,16 +182,14 @@ function buildCenter() {
   centerLabel = makeText(overview, cx, cy, lines, "var(--fg)");
 }
 
-// Fokuslinje (månadsvy) och idag-markör
-const focusLine = el(topG, "line", { stroke: "var(--fg)", "stroke-opacity": .45, "stroke-width": 1.5, "stroke-linecap": "round", ...NSS });
-let todayDot = null;
+// Dagfält (dag-läget): ett tonat fält en dag högt som står still medan dagarna glider igenom
+const dayField = el(topG, "path", { fill: "var(--fg)", "fill-opacity": .08 });
+// Idag-markör: kontur i bakgrundsfärg så att linjen skiljer sig mot alla LP-färger.
+// Linjen slutar vid bandet, så att månadsnamnet utanför inte korsas.
 if (todayInYear) {
   const a = centerAngle(TODAY);
-  // Kontur i bakgrundsfärg så att linjen skiljer sig mot alla LP-färger. Linjen slutar vid bandet och
-  // pricken ligger utanför ringen, så att månadsnamnet däremellan inte korsas.
   line(topG, INNER, THICK_OUT, a, { stroke: "var(--bg)", "stroke-width": 4, "stroke-linecap": "round" });
   line(topG, INNER, THICK_OUT, a, { stroke: "var(--today)", "stroke-width": 2, "stroke-linecap": "round" });
-  todayDot = el(topG, "circle", { cx: pt(OUTER + 8, a)[0], cy: pt(OUTER + 8, a)[1], r: 4, fill: "var(--today)" });
 }
 
 // ============ Vy, zoom och rörelse ============
@@ -230,7 +231,9 @@ function layoutCallouts(k) {
     moveText(c.l, ...pt(RC + 3 * k + (c.l.wpx * si + c.l.hpx * co) / 2 * k, c.la));
     c.l.kMax = Infinity;
     const p0 = pt(c.r0, c.a);
-    el(leaderG, "polyline", { points: [p0, pt(OUTER + 4, c.a), pt(RC, c.la)].join(" "), fill: "none",
+    // Står rubriken i samma höjd som sin dag räcker en stump; ett helt streck skulle korsa dagnumren
+    const beside = Math.abs(c.la - c.a) < DPD / 2;
+    el(leaderG, "polyline", { points: (beside ? [p0, pt(OUTER + 4, c.a)] : [p0, pt(OUTER + 4, c.a), pt(RC, c.la)]).join(" "), fill: "none",
                               stroke: c.isEvent ? "var(--secondary)" : "var(--tertiary)", "stroke-width": 1, "stroke-linejoin": "round", ...NSS });
     if (!c.isEvent)
       el(leaderG, "circle", { cx: p0[0], cy: p0[1], r: 3.5 * k, fill: c.color, stroke: "var(--bg)", "stroke-width": 1.5, ...NSS });
@@ -265,23 +268,22 @@ function render() {
   // Under drag och glid i dag-läget är K oförändrad, och då behöver ingen etikett röras
   if (K !== lastK) {
     lastK = K;
+    // Texten i mitten har fast pixelstorlek; i ett stort hål (desktop) skalas den upp, högst 1,5 gånger
+    const centerScale = clamp(2 * INNER / k0 / 196, 1, 1.5);
     for (const l of labels) {
-      l.el.setAttribute("font-size", l.px * K);
+      l.el.setAttribute("font-size", l.px * K * (l === centerLabel ? centerScale : 1));
       l.el.style.display = K <= l.kMax ? "" : "none";
     }
     stripes.setAttribute("patternTransform", `rotate(45) scale(${K})`);
-    if (todayDot) todayDot.setAttribute("r", 4 * K);
-    for (const d of eventDots) d.setAttribute("r", 3.5 * K);
+    for (const d of eventDots) d.setAttribute("r", 2.5 * K);
     if (todayNum) {
       todayNum.circle.setAttribute("r", 8 * K);
       todayNum.circle.style.display = K <= todayNum.label.kMax ? "" : "none";
     }
   }
-  if (todayDot) todayDot.style.opacity = 1 - zo;   // i dag-läget markeras idag av cirkeln runt dagnumret
 
-  const [lx1, ly1] = pt(INNER, view.f), [lx2, ly2] = pt(OUTER, view.f);
-  Object.entries({ x1: lx1, y1: ly1, x2: lx2, y2: ly2 }).forEach(([k, v]) => focusLine.setAttribute(k, v));
-  focusLine.style.opacity = zo;
+  dayField.setAttribute("d", sectorD(THICK_OUT, DAY_EDGE, view.f + DPD / 2, view.f - DPD / 2));
+  dayField.style.opacity = zo;
   if (zo > 0) updateCard(dayAt(view.f));
 }
 
@@ -352,10 +354,18 @@ $("todayBtn").hidden = !todayInYear;
 document.querySelectorAll(".today-key").forEach(k => k.hidden = !todayInYear);
 
 // ============ Infokort ============
-let cardT = null;
+let cardT = null, selectedDay = null;
+// Vald dags nummer i fetstil och full textfärg. Idag har redan vit fetstil på röd cirkel.
+function markDay(l, on) {
+  l.el.setAttribute("fill", on ? "var(--fg)" : "var(--secondary)");
+  l.el.firstChild.setAttribute("font-weight", on ? 700 : 500);
+}
 function updateCard(t) {
   if (t === cardT) return;
   cardT = t;
+  if (selectedDay) markDay(selectedDay, false);
+  selectedDay = t === TODAY ? null : dayLabels[(t - START) / DAY] ?? null;
+  if (selectedDay) markDay(selectedDay, true);
   const info = describe(t);
   $("cDate").textContent = fmtDate(t);
   renderEventList(t);
@@ -541,7 +551,7 @@ function saveEvents(next) {
 }
 let events = loadEvents();
 const eventsOn = t => events.filter(e => e.date === t);
-const EV_R = 336;             // händelsepricken ligger i ytterbandet
+const EV_R = 345;             // händelsepricken ligger vid dagnumret, fri från månadsnamnen i årsvyn
 let eventDots = [];
 
 function fmtDate(t) {
@@ -561,7 +571,7 @@ function drawEvents() {
   for (const e of events) if (e.date >= START && e.date < END) byDay.set(e.date, [...(byDay.get(e.date) || []), e]);
   for (const [t, list] of byDay) {
     const a = centerAngle(t), [x, y] = pt(EV_R, a);
-    eventDots.push(el(eventG, "circle", { cx: x, cy: y, r: 3.5, fill: "var(--fg)", stroke: "var(--track)", "stroke-width": 1.5, ...NSS }));
+    eventDots.push(el(eventG, "circle", { cx: x, cy: y, r: 2.5, fill: "var(--accent)", stroke: "var(--track)", "stroke-width": 1.5, ...NSS }));
     const text = trunc(list[0].title, 19) + (list.length > 1 ? ` +${list.length - 1}` : "");   // ryms i CALLOUT_PX
     callout({ kMax: -Infinity }, a, [[text, 12, 600]], "var(--fg)", { r0: EV_R, isEvent: true });
   }
