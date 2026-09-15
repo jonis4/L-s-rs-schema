@@ -1,305 +1,15 @@
-<!doctype html>
-<html lang="sv">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="color-scheme" content="light dark">
-<title>Läsår 26/27</title>
-<style>
-  :root {
-    --bg: #f5f5f7; --fg: #1d1d1f; --secondary: #6e6e73; --tertiary: #a1a1a6;
-    --separator: rgba(60,60,67,.16); --track: #e8e8ed; --weekend: rgba(60,60,67,.07);
-    --material: rgba(255,255,255,.72); --material-border: rgba(0,0,0,.06); --thumb: #fff;
-    --shadow: 0 12px 32px rgba(0,0,0,.08), 0 1px 2px rgba(0,0,0,.06);
-    /* Samma regel i båda lägena: systemfärger som fyllning, kontrasten löses med textfärgen */
-    --lp1: #ff9500; --lp2: #4da3ff; --lp3: #30b0c7; --lp4: #34c759;
-    --nolle: #af52de; --re: #8e8e93; --on-fill: rgba(0,0,0,.85);
-    /* --today för markeringar, --today-ink för text och ytor med text */
-    --today: #ff3b30; --today-ink: #d70015; --accent: #0066cc;
-    --sheet: #fff; --field: rgba(118,118,128,.12);
-  }
-  @media (prefers-color-scheme: dark) {
-    :root {
-      --bg: #000; --fg: #f5f5f7; --secondary: #98989d; --tertiary: #636366;
-      --separator: rgba(84,84,88,.55); --track: #161618; --weekend: rgba(255,255,255,.05);
-      --material: rgba(38,38,40,.72); --material-border: rgba(255,255,255,.08); --thumb: #636366;
-      --shadow: 0 12px 32px rgba(0,0,0,.5);
-      --lp1: #ff9f0a; --lp2: #4da3ff; --lp3: #40c8e0; --lp4: #30d158;
-      --nolle: #bf5af2; --re: #7c7c80; --on-fill: rgba(0,0,0,.85);
-      --today: #ff453a; --today-ink: #ff453a; --accent: #0a84ff;
-      --sheet: #1c1c1e; --field: rgba(118,118,128,.24);
-    }
-  }
-  * { box-sizing: border-box; }
-  html, body { margin: 0; height: 100%; overflow: hidden; background: var(--bg); color: var(--fg);
-    font: 13px/1.35 -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
-    -webkit-font-smoothing: antialiased; font-variant-numeric: tabular-nums; }
+// ============ Gränssnitt ============
+// Kräver data.js, time.js och storage.js.
 
-  #cal { position: fixed; inset: 0; width: 100vw; height: 100vh; height: 100dvh; display: block;
-         touch-action: none; user-select: none; -webkit-user-select: none; }
-  #cal.over-ring { cursor: zoom-in; }
-  body.month #cal { cursor: grab; }
-  body.month #cal.dragging { cursor: grabbing; }
-  text { pointer-events: none; }
-  .seg { transition: filter .15s; }
-  .seg.hover { filter: brightness(1.12) saturate(1.1); }
-
-  .glass { background: var(--material); border: 1px solid var(--material-border); box-shadow: var(--shadow);
-           -webkit-backdrop-filter: blur(24px) saturate(180%); backdrop-filter: blur(24px) saturate(180%); }
-  button { font: inherit; }
-  button:focus-visible { outline: 3px solid color-mix(in srgb, var(--accent) 55%, transparent); outline-offset: 2px; }
-
-  /* Verktygsfält */
-  .toolbar { position: fixed; top: max(14px, env(safe-area-inset-top)); left: 50%; transform: translateX(-50%);
-             display: flex; gap: 8px; z-index: 5; }
-  .segmented { position: relative; display: grid; grid-template-columns: 1fr 1fr; padding: 2px; border-radius: 10px; }
-  .segmented button { position: relative; z-index: 1; appearance: none; border: 0; background: none; color: var(--fg);
-                      font-weight: 500; min-width: 76px; padding: 6px 16px; border-radius: 8px; cursor: pointer; }
-  .segmented button[aria-selected="true"] { font-weight: 600; }
-  .segmented .thumb { position: absolute; top: 2px; bottom: 2px; left: 2px; width: calc(50% - 2px); border-radius: 8px;
-                      background: var(--thumb); box-shadow: 0 1px 4px rgba(0,0,0,.14), 0 0 0 .5px rgba(0,0,0,.04);
-                      transition: transform .35s cubic-bezier(.3,.8,.2,1); }
-  body.month .segmented .thumb { transform: translateX(100%); }
-  .pill { appearance: none; color: var(--accent); font-weight: 600; padding: 7px 14px; border-radius: 10px; cursor: pointer; }
-  @media (pointer: coarse) { .segmented button, .pill { min-height: 44px; } }
-
-  /* Infokort (månadsvy) */
-  #card { position: fixed; left: 50%; bottom: max(16px, env(safe-area-inset-bottom)); z-index: 4;
-          width: min(400px, calc(100vw - 32px)); border-radius: 16px; padding: 16px;
-          opacity: 0; transform: translate(-50%, 16px); pointer-events: none;
-          transition: opacity .25s, transform .4s cubic-bezier(.3,.8,.2,1); }
-  body.month #card { opacity: 1; transform: translate(-50%, 0); pointer-events: auto; }
-  #cEvents:not(:empty) { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--separator);
-                         display: grid; gap: 12px; max-height: 32vh; overflow: auto; }
-  .ev { display: grid; grid-template-columns: 1fr auto; gap: 2px 12px; align-items: baseline; }
-  .ev h3 { margin: 0; font-size: 15px; font-weight: 600; overflow-wrap: anywhere; }
-  .ev p { grid-column: 1 / -1; margin: 0; color: var(--secondary); white-space: pre-wrap; overflow-wrap: anywhere; }
-  .ev button { appearance: none; border: 0; background: none; color: var(--accent); font-weight: 500; padding: 0; cursor: pointer; }
-  @media (pointer: coarse) { .ev button { padding: 8px; margin: -8px; } }
-  .add { width: 100%; margin-top: 12px; appearance: none; border: 0; border-radius: 10px; padding: 9px;
-         background: color-mix(in srgb, var(--accent) 12%, transparent); color: var(--accent); font-weight: 600; cursor: pointer; }
-  .add:hover { background: color-mix(in srgb, var(--accent) 18%, transparent); }
-
-  /* Ark för att skapa/redigera händelse */
-  dialog { border: 0; padding: 0; border-radius: 16px; width: min(420px, calc(100vw - 32px));
-           background: var(--sheet); color: var(--fg); box-shadow: 0 24px 60px rgba(0,0,0,.28); }
-  dialog[open] { animation: pop .28s cubic-bezier(.3,.8,.2,1); }
-  @keyframes pop { from { opacity: 0; transform: scale(.96); } }
-  dialog::backdrop { background: rgba(0,0,0,.28); -webkit-backdrop-filter: blur(3px); backdrop-filter: blur(3px); }
-  #sheetForm { padding: 16px; display: grid; gap: 8px; }
-  .sheet-head { display: grid; gap: 2px; margin-bottom: 4px; text-align: center; }
-  #sheetForm h2 { margin: 0; font-size: 15px; font-weight: 600; }
-  #sheetDate { margin: 0; color: var(--secondary); font-size: 12px; }
-  /* 16px hindrar iOS från att zooma vid fokus */
-  #sheetForm input, #sheetForm textarea { width: 100%; min-height: 44px; font: inherit; font-size: 16px; color: var(--fg); background: var(--field);
-    border: 1px solid transparent; border-radius: 10px; padding: 10px 12px; resize: vertical; }
-  #sheetForm input:focus, #sheetForm textarea:focus { outline: none; border-color: var(--accent);
-    box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 25%, transparent); }
-  .actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 4px; }
-  .actions button { appearance: none; border: 0; border-radius: 10px; min-height: 44px; padding: 10px; font-weight: 600; cursor: pointer; }
-  #sheetError { margin: 0; text-align: center; color: var(--today-ink); font-size: 12px; font-weight: 500; }
-  #fCancel { background: var(--field); color: var(--fg); }
-  #fSave { background: var(--accent); color: #fff; }
-  #fSave:disabled { opacity: .4; cursor: default; }
-  .danger { appearance: none; border: 0; background: none; color: var(--today-ink); font-weight: 600; min-height: 44px; margin-top: 8px;
-            padding: 10px; border-radius: 10px; cursor: pointer; }
-  .danger.confirm { background: var(--today-ink); color: #fff; }
-  .card-top { display: flex; justify-content: space-between; gap: 12px; color: var(--secondary); font-size: 12px; font-weight: 500; }
-  .card-title { display: flex; align-items: center; gap: 8px; margin-top: 4px; font-size: 19px; font-weight: 600; letter-spacing: -.012em; }
-  .dot { width: 10px; height: 10px; border-radius: 50%; flex: none; }
-  .tag { margin-left: auto; font-size: 11px; font-weight: 700; color: #fff; background: var(--today-ink); padding: 2px 7px; border-radius: 6px; }
-  .bar { height: 4px; border-radius: 2px; background: var(--separator); margin: 12px 0 8px; overflow: hidden; }
-  .bar span { display: block; height: 100%; border-radius: 2px; }
-  .card-sub { display: flex; justify-content: space-between; gap: 12px; color: var(--secondary); font-size: 12px; }
-  .card-sub b { color: var(--fg); font-weight: 600; }
-
-  /* Kortkommandon (dagvy, bara med muspekare och brett fönster) */
-  #keys { position: fixed; left: max(16px, env(safe-area-inset-left)); bottom: max(16px, env(safe-area-inset-bottom));
-          z-index: 3; border-radius: 12px; padding: 12px; display: none; grid-template-columns: auto auto; gap: 6px 10px;
-          font-size: 12px; color: var(--secondary); opacity: 0; pointer-events: none; transition: opacity .25s; }
-  #keys kbd { font: inherit; font-weight: 600; color: var(--fg); justify-self: end; }
-  @media (hover: hover) and (min-width: 900px) { #keys { display: grid; } }
-  body.month #keys { opacity: 1; }
-
-  /* Verktygstips och introduktion */
-  #tip { position: fixed; left: 0; top: 0; z-index: 6; border-radius: 12px; padding: 8px 12px; white-space: nowrap;
-         pointer-events: none; opacity: 0; transition: opacity .12s; }
-  #tip.show { opacity: 1; }
-  #tip b { display: block; font-weight: 600; }
-  #tip span { color: var(--secondary); font-size: 12px; }
-  #coach { position: fixed; left: 50%; bottom: max(24px, env(safe-area-inset-bottom)); transform: translateX(-50%); z-index: 3;
-           border-radius: 10px; padding: 8px 16px; font-weight: 400; color: var(--secondary); white-space: nowrap; transition: opacity .3s;
-           box-shadow: none; }   /* ett tips, inte en knapp */
-  #coach.gone, body.month #coach { opacity: 0; pointer-events: none; }
-
-  @media (prefers-reduced-motion: reduce) { *, *::before { transition: none !important; animation: none !important; } }
-</style>
-</head>
-<body>
-<svg id="cal" role="application" aria-label="Cirkelkalender över läsåret 2026/27. Vinter upp, höst höger, sommar ner, vår vänster.">
-  <defs>
-    <pattern id="stripes" patternUnits="userSpaceOnUse" width="7" height="7" patternTransform="rotate(45)">
-      <rect width="2.5" height="7" fill="#fff" fill-opacity=".18"/>
-    </pattern>
-  </defs>
-</svg>
-
-<nav class="toolbar">
-  <div class="segmented glass" role="tablist" aria-label="Vy">
-    <span class="thumb"></span>
-    <button role="tab" id="modeYear" aria-selected="true">År</button>
-    <button role="tab" id="modeMonth" aria-selected="false">Dag</button>
-  </div>
-  <button class="pill glass" id="todayBtn">Idag</button>
-</nav>
-
-<section id="card" class="glass" inert>
-  <div class="card-top"><span id="cDate"></span><span id="cWeek"></span></div>
-  <div class="card-title"><span class="dot" id="cDot"></span><span id="cTitle"></span><span class="tag" id="cToday">Idag</span></div>
-  <div class="bar" id="cBarWrap"><span id="cBar"></span></div>
-  <div class="card-sub"><span id="cProg"></span><span id="cNext"></span></div>
-  <div id="cEvents"></div>
-  <button class="add" id="addBtn">+ Lägg till händelse</button>
-</section>
-
-<dialog id="sheet" aria-labelledby="sheetTitle">
-  <form id="sheetForm">
-    <div class="sheet-head">
-      <h2 id="sheetTitle">Ny händelse</h2>
-      <p id="sheetDate"></p>
-    </div>
-    <input id="fTitle" placeholder="Titel" maxlength="80" autocomplete="off">
-    <textarea id="fDesc" placeholder="Beskrivning" rows="4"></textarea>
-    <p id="sheetError" role="alert" hidden>Kunde inte spara. Webbläsaren tillåter inte lagring just nu.</p>
-    <div class="actions">
-      <button type="button" id="fCancel">Avbryt</button>
-      <button type="submit" id="fSave">Lägg till</button>
-    </div>
-    <button type="button" id="fDelete" class="danger">Ta bort händelse</button>
-  </form>
-</dialog>
-
-<div id="keys" class="glass">
-  <kbd>← →</kbd><span>Dag</span>
-  <kbd>⇧ ← →</kbd><span>Vecka</span>
-  <kbd class="today-key">T</kbd><span class="today-key">Idag</span>
-  <kbd>Esc</kbd><span>År</span>
-</div>
-<div id="tip" class="glass" role="tooltip"><b></b><span></span></div>
-<div id="coach" class="glass"></div>
-
-<script>
-// ============ Data (Läsårsindelning 26/27) ============
-
-// Så som en student upplever året
-const student = [
-  { type: "omtenta",      from: [2026,8,19],  to: [2026,8,29] },
-  { type: "lekt",  lp: 1, from: [2026,8,31],  to: [2026,10,19] },
-  { type: "omtenta",      from: [2026,10,20], to: [2026,10,22] },
-  { type: "tenta", lp: 1, from: [2026,10,23], to: [2026,10,30] },
-  { type: "lekt",  lp: 2, from: [2026,11,2],  to: [2026,12,17] },
-  { type: "omtenta",      from: [2026,12,18], to: [2026,12,22] },
-  { type: "lekt",  lp: 2, from: [2027,1,4],   to: [2027,1,4] },
-  { type: "lekt",  lp: 2, from: [2027,1,7],   to: [2027,1,8] },
-  { type: "tenta", lp: 2, from: [2027,1,11],  to: [2027,1,16] },
-  { type: "lekt",  lp: 3, from: [2027,1,18],  to: [2027,3,12] },
-  { type: "omtenta",      from: [2027,3,15],  to: [2027,3,17] },
-  { type: "tenta", lp: 3, from: [2027,3,18],  to: [2027,3,25] },
-  { type: "lekt",  lp: 4, from: [2027,3,30],  to: [2027,5,5] },
-  { type: "lekt",  lp: 4, from: [2027,5,7],   to: [2027,5,25] },
-  { type: "omtenta",      from: [2027,5,26],  to: [2027,5,28] },
-  { type: "tenta", lp: 4, from: [2027,5,31],  to: [2027,6,5] },
-];
-const breaks = [
-  { name: "Sommarlov",          from: [2026,8,1],   to: [2026,8,18] },
-  { name: "Jullov",             from: [2026,12,23], to: [2027,1,3] },
-  { name: "Trettondagen",       from: [2027,1,5],   to: [2027,1,6] },
-  { name: "Påsk",               from: [2027,3,26],  to: [2027,3,29] },
-  { name: "Kristi himmelsfärd", from: [2027,5,6],   to: [2027,5,6] },
-  { name: "Sommarlov",          from: [2027,6,6],   to: [2027,7,31] },
-];
-// Officiella läsperioder (tunn ring)
-const official = [
-  { name: "Nolleperiod", short: "Nolleperiod",          c: "var(--nolle)", from: [2026,8,19], to: [2026,8,29] },
-  { name: "Läsperiod 1", short: "Läsperiod 1 · v36–44", c: "var(--lp1)",   from: [2026,8,31], to: [2026,11,1] },
-  { name: "Läsperiod 2", short: "Läsperiod 2 · v45–02", c: "var(--lp2)",   from: [2026,11,2], to: [2027,1,17] },
-  { name: "Läsperiod 3", short: "Läsperiod 3 · v3–12",  c: "var(--lp3)",   from: [2027,1,18], to: [2027,3,28] },
-  { name: "Läsperiod 4", short: "Läsperiod 4 · v13–22", c: "var(--lp4)",   from: [2027,3,29], to: [2027,6,6] },
-];
-
-// ============ Tid och geometri ============
-const DAY = 864e5, START = Date.UTC(2026,7,1), END = START + 365 * DAY;
-const REF = Date.UTC(2027,0,15);                 // mitten av vintern rakt upp
-const DPD = 2 * Math.PI / 365;                   // radianer per dag
+// ============ Geometri ============
 const cx = 400, cy = 400;
-const MONTHS = ["jan","feb","mar","apr","maj","jun","jul","aug","sep","okt","nov","dec"];
-
-const toT = ([y,m,d]) => Date.UTC(y, m - 1, d);
-const angT = t => -((t - REF) / DAY) * DPD;      // tiden går moturs
-const centerAngle = t => angT(t + DAY / 2);
 const pt = (r, a) => [cx + r * Math.sin(a), cy - r * Math.cos(a)];
 const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
-const dayAt = a => START + ((Math.floor((REF - START) / DAY - a / DPD) % 365 + 365) % 365) * DAY;
-const nDays = x => (x.t1 - x.t0) / DAY;
-
-const now = new Date();
-const TODAY = Date.UTC(now.getFullYear(), now.getMonth(), now.getDate());
-const todayInYear = TODAY >= START && TODAY < END;
-
-const prep = x => ({ ...x, t0: toT(x.from), t1: toT(x.to) + DAY });
-const SEG = student.map(prep), BRK = breaks.map(prep), OFF = official.map(prep);
-const within = (list, t) => list.find(x => t >= x.t0 && t < x.t1);
-
-function range(x) {
-  const f = new Date(x.t0), l = new Date(x.t1 - DAY);
-  const fd = f.getUTCDate(), fm = MONTHS[f.getUTCMonth()], ld = l.getUTCDate(), lm = MONTHS[l.getUTCMonth()];
-  if (x.t1 - x.t0 === DAY) return `${fd} ${fm}`;
-  return fm === lm ? `${fd}–${ld} ${lm}` : `${fd} ${fm} – ${ld} ${lm}`;
-}
-function isoWeek(t) {
-  const d = new Date(t + (3 - (new Date(t).getUTCDay() + 6) % 7) * DAY);
-  return Math.ceil(((d - Date.UTC(d.getUTCFullYear(), 0, 1)) / DAY + 1) / 7);
-}
-const segTitle = s => s.type === "lekt" ? `LP${s.lp} · Lektioner` : s.type === "tenta" ? `LP${s.lp} · Tenta-P` : "Omtenta-P";
-const segColor = s => s.type === "omtenta" ? "var(--re)" : `var(--lp${s.lp})`;
-const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
-
-// Vad händer en viss dag, och vad kommer härnäst
-function describe(t) {
-  const s = within(SEG, t), b = within(BRK, t), o = within(OFF, t);
-  const wd = new Date(t).getUTCDay(), weekend = wd === 0 || wd === 6;
-  const r = { week: isoWeek(t), color: "var(--tertiary)", prog: null, next: null };
-  if (s) {
-    r.title = weekend && s.type === "lekt" ? `LP${s.lp} · Helg` : segTitle(s);
-    r.color = segColor(s);
-    // En läsperiods lektioner kan vara uppdelade i flera poster; räkna över hela perioden
-    const parts = s.lp ? SEG.filter(x => x.type === s.type && x.lp === s.lp) : [s];
-    const t0 = Math.min(...parts.map(x => x.t0)), t1 = Math.max(...parts.map(x => x.t1));
-    r.prog = [(t - t0) / DAY + 1, (t1 - t0) / DAY];
-  } else if (b) {
-    r.title = b.name; r.prog = [(t - b.t0) / DAY + 1, nDays(b)];
-  } else {
-    r.title = weekend ? "Helg" : "Ingen undervisning";
-  }
-  if (o && o.name.startsWith("Läs")) r.lasvecka = Math.floor((t - o.t0) / (7 * DAY)) + 1;
-  // Omtentor hoppas över: de flesta skriver dem inte, och de skymmer den egna tentaperioden
-  const nx = SEG.find(x => x.t0 > t && x.type !== "omtenta" && !(s && x.type === s.type && x.lp === s.lp));
-  if (nx) r.next = [segTitle(nx), until((nx.t0 - t) / DAY)];
-  return r;
-}
-const until = n => n === 0 ? "idag" : n === 1 ? "imorgon"
-  : n < 14 ? `om ${plural(n, "dag", "dagar")}` : `om ${plural(Math.round(n / 7), "vecka", "veckor")}`;
-// Hur långt en dag ligger från idag, i dagar
-function fromToday(t) {
-  const n = (t - TODAY) / DAY;
-  if (n === 0) return "";
-  if (n === 1) return "imorgon";
-  if (n === -1) return "igår";
-  return n > 0 ? `om ${plural(n, "dag", "dagar")}` : `för ${plural(-n, "dag", "dagar")} sedan`;
-}
 
 // ============ SVG-bygge ============
 const NS = "http://www.w3.org/2000/svg", svg = document.getElementById("cal");
+document.title = `Läsår ${YEAR.label}`;
+svg.setAttribute("aria-label", `Cirkelkalender över läsåret ${YEAR.full}. Vinter upp, höst höger, sommar ner, vår vänster.`);
 function el(parent, tag, attrs, text) {
   const e = document.createElementNS(NS, tag);
   for (const k in attrs) e.setAttribute(k, attrs[k]);
@@ -372,8 +82,9 @@ el(base, "circle", { cx, cy, r: OUTER, fill: "var(--track)" });
 el(base, "circle", { cx, cy, r: INNER, fill: "var(--bg)" });
 
 // Månader
+const y0 = new Date(START).getUTCFullYear(), m0 = new Date(START).getUTCMonth();
 for (let i = 0; i < 12; i++) {
-  const d0 = new Date(Date.UTC(2026, 7 + i, 1)), d1 = Date.UTC(2026, 8 + i, 1);
+  const d0 = new Date(Date.UTC(y0, m0 + i, 1)), d1 = Date.UTC(y0, m0 + i + 1, 1);
   line(base, THICK_OUT, OUTER, angT(+d0), { stroke: "var(--separator)", "stroke-width": 1 });
   label(base, 317, (angT(+d0) + angT(d1)) / 2, [[MONTHS[d0.getUTCMonth()].toUpperCase(), 12, 600]], { fill: "var(--secondary)" });
 }
@@ -437,7 +148,10 @@ let centerLabel = null;
 function buildCenter() {
   if (centerLabel) { centerLabel.el.remove(); labels = labels.filter(l => l !== centerLabel); }
   if (!todayInYear) {
-    centerLabel = makeText(overview, cx, cy, [["LÄSÅR", 11, 700, "var(--secondary)"], ["26/27", 34, 700]], "var(--fg)");
+    const status = TODAY >= END ? "Läsåret är slut" : `Börjar ${until((START - TODAY) / DAY)}`;
+    centerLabel = makeText(overview, cx, cy, [
+      ["LÄSÅR", 11, 700, "var(--secondary)"], [YEAR.label, 34, 700], [status, 13, 600, "var(--secondary)"],
+    ], "var(--fg)");
     return;
   }
   const info = describe(TODAY);
@@ -717,7 +431,7 @@ svg.addEventListener("wheel", ev => {
 }, { passive: false });
 
 addEventListener("keydown", e => {
-  if (e.metaKey || e.ctrlKey || e.altKey || sheet.open || e.target.closest?.("input, textarea")) return;
+  if (e.metaKey || e.ctrlKey || e.altKey || document.querySelector("dialog[open]") || e.target.closest?.("input, textarea")) return;
   if (e.key === "Escape") zoomOut();
   else if (e.key === "t" || e.key === "T") goToday();
   else if (mode === "month" && (e.key === "ArrowRight" || e.key === "ArrowLeft")) {
@@ -729,18 +443,31 @@ addEventListener("keydown", e => {
 addEventListener("resize", () => { layoutCallouts(kZoom()); render(); });
 
 // ============ Händelser ============
-const STORE = "hjul-handelser";
-let events = [];
-try {
-  const saved = JSON.parse(localStorage.getItem(STORE));
-  if (Array.isArray(saved)) events = saved.filter(e => e && typeof e.date === "number" && typeof e.title === "string");
-} catch {}
+// All läsning och skrivning av händelser går genom loadEvents och saveEvents,
+// så att lagringen kan bytas (till exempel mot native-lagring) på ett ställe.
+let storeLocked = false;   // trasig data som inte gick att spara undan får inte skrivas över
+function loadEvents() {
+  let raw, legacy = false;
+  try {
+    raw = localStorage.getItem(STORE);
+    if (raw == null) { raw = localStorage.getItem(LEGACY_STORE); legacy = raw != null; }
+  } catch { return []; }
+  const { events, intact } = parseEvents(raw);
+  if (!intact) {
+    try { localStorage.setItem(`${STORE}-backup-${Date.now()}`, raw); } catch { storeLocked = true; }
+  }
+  // Flytta till det versionerade formatet. Den gamla nyckeln lämnas orörd.
+  if (legacy && !storeLocked) try { localStorage.setItem(STORE, serializeEvents(events)); } catch {}
+  return events;
+}
 // Byter bara ut listan om den gick att spara
 function saveEvents(next) {
-  try { localStorage.setItem(STORE, JSON.stringify(next)); } catch { return false; }
+  if (storeLocked) return false;
+  try { localStorage.setItem(STORE, serializeEvents(next)); } catch { return false; }
   events = next;
   return true;
 }
+let events = loadEvents();
 const eventsOn = t => events.filter(e => e.date === t);
 const EV_R = 336;             // händelsepricken ligger i ytterbandet
 let eventDots = [];
@@ -810,21 +537,23 @@ function openSheet(t, ev = null) {
   fTitle.focus();
 }
 const dirty = () => fTitle.value !== (editing?.title ?? "") || fDesc.value !== (editing?.desc ?? "");
-function commitEvents(next) {
-  if (!saveEvents(next)) {
-    sheetError.hidden = false;
-    return false;
-  }
+function applyEvents(next) {
+  if (!saveEvents(next)) return false;
   drawEvents();
   buildCenter();
   cardT = null;
   render();
   return true;
 }
+function commitEvents(next) {
+  const ok = applyEvents(next);
+  sheetError.hidden = ok;
+  return ok;
+}
 function saveSheet(title, desc) {
   const next = editing
     ? events.map(e => e === editing ? { ...e, title, desc } : e)
-    : [...events, { id: String(Date.now()) + Math.random().toString(36).slice(2, 7), date: editDate, title, desc }];
+    : [...events, { id: newId(), date: editDate, title, desc }];
   return commitEvents(next);
 }
 fTitle.addEventListener("input", () => fSave.disabled = !fTitle.value.trim());
@@ -864,9 +593,60 @@ sheet.addEventListener("pointerdown", e => downOutside = e.target === sheet);
 sheet.addEventListener("click", e => { if (e.target === sheet && downOutside && !dirty()) sheet.close(); });
 $("addBtn").onclick = () => { cancelAnimationFrame(anim); snap(); openSheet(dayAt(view.f)); };
 
+// ============ Säkerhetskopia ============
+// Händelserna finns bara på enheten. Export och import är det som räddar dem vid byte av telefon eller rensad data.
+const backup = $("backup"), backupStatus = $("backupStatus"), importFile = $("importFile");
+$("menuBtn").onclick = () => { backupStatus.textContent = ""; backup.showModal(); };
+$("backupClose").onclick = () => backup.close();
+backup.addEventListener("click", e => { if (e.target === backup) backup.close(); });
+
+$("exportBtn").onclick = async () => {
+  const name = `lasar-handelser-${new Date().toISOString().slice(0, 10)}.json`;
+  const file = new File([serializeEvents(events, { exported: new Date().toISOString() })], name, { type: "application/json" });
+  // På telefon öppnas delningsmenyn (Spara i Filer, AirDrop, mejl). Annars laddas filen ner.
+  if (matchMedia("(pointer: coarse)").matches && navigator.canShare?.({ files: [file] })) {
+    try { await navigator.share({ files: [file] }); backupStatus.textContent = plural(events.length, "händelse exporterad", "händelser exporterade"); }
+    catch (err) { if (err.name !== "AbortError") backupStatus.textContent = "Kunde inte dela filen."; }
+    return;
+  }
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(file);
+  a.download = name;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  backupStatus.textContent = plural(events.length, "händelse exporterad", "händelser exporterade");
+};
+$("importBtn").onclick = () => importFile.click();
+importFile.onchange = async () => {
+  const f = importFile.files[0];
+  importFile.value = "";
+  if (!f) return;
+  const { events: incoming } = parseEvents(await f.text());
+  if (!incoming.length) { backupStatus.textContent = "Filen innehöll inga händelser som gick att läsa."; return; }
+  const merged = mergeEvents(events, incoming);
+  if (!applyEvents(merged.events)) { backupStatus.textContent = "Kunde inte spara. Webbläsaren tillåter inte lagring just nu."; return; }
+  backupStatus.textContent = plural(merged.added, "händelse importerad", "händelser importerade")
+    + (merged.skipped ? `, ${merged.skipped} fanns redan` : "");
+};
+
+// ============ Livscykel ============
+// Dagens läge ritas in när sidan byggs. En app i bakgrunden kan leva över midnatt,
+// så sidan laddas om när datumet har bytts, men aldrig mitt i en redigering.
+let reloadPending = false;
+function checkDate() {
+  if (document.hidden || today() === TODAY) return;
+  const open = document.querySelector("dialog[open]");
+  if (!open) return location.reload();
+  if (!reloadPending) { reloadPending = true; open.addEventListener("close", () => { reloadPending = false; checkDate(); }, { once: true }); }
+}
+document.addEventListener("visibilitychange", checkDate);
+addEventListener("pageshow", checkDate);
+setInterval(checkDate, 60e3);
+
+// ============ Offline ============
+// Inte lokalt: service workern cachar filerna, och då syns ändringar inte förrän versionen i sw.js höjs.
+if ("serviceWorker" in navigator && location.protocol === "https:") navigator.serviceWorker.register("sw.js");
+
 drawEvents();
 buildCenter();
 render();
-</script>
-</body>
-</html>

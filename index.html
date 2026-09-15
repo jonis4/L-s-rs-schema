@@ -1,0 +1,225 @@
+<!doctype html>
+<html lang="sv">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<meta name="theme-color" content="#f5f5f7" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Läsår">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<title>Läsår</title>
+<style>
+  :root {
+    --bg: #f5f5f7; --fg: #1d1d1f; --secondary: #6e6e73; --tertiary: #a1a1a6;
+    --separator: rgba(60,60,67,.16); --track: #e8e8ed; --weekend: rgba(60,60,67,.07);
+    --material: rgba(255,255,255,.72); --material-border: rgba(0,0,0,.06); --thumb: #fff;
+    --shadow: 0 12px 32px rgba(0,0,0,.08), 0 1px 2px rgba(0,0,0,.06);
+    /* Samma regel i båda lägena: systemfärger som fyllning, kontrasten löses med textfärgen */
+    --lp1: #ff9500; --lp2: #4da3ff; --lp3: #30b0c7; --lp4: #34c759;
+    --nolle: #af52de; --re: #8e8e93; --on-fill: rgba(0,0,0,.85);
+    /* --today för markeringar, --today-ink för text och ytor med text */
+    --today: #ff3b30; --today-ink: #d70015; --accent: #0066cc;
+    --sheet: #fff; --field: rgba(118,118,128,.12);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #000; --fg: #f5f5f7; --secondary: #98989d; --tertiary: #636366;
+      --separator: rgba(84,84,88,.55); --track: #161618; --weekend: rgba(255,255,255,.05);
+      --material: rgba(38,38,40,.72); --material-border: rgba(255,255,255,.08); --thumb: #636366;
+      --shadow: 0 12px 32px rgba(0,0,0,.5);
+      --lp1: #ff9f0a; --lp2: #4da3ff; --lp3: #40c8e0; --lp4: #30d158;
+      --nolle: #bf5af2; --re: #7c7c80; --on-fill: rgba(0,0,0,.85);
+      --today: #ff453a; --today-ink: #ff453a; --accent: #0a84ff;
+      --sheet: #1c1c1e; --field: rgba(118,118,128,.24);
+    }
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; overflow: hidden; background: var(--bg); color: var(--fg);
+    font: 13px/1.35 -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased; font-variant-numeric: tabular-nums; }
+
+  #cal { position: fixed; inset: 0; width: 100vw; height: 100vh; height: 100dvh; display: block;
+         touch-action: none; user-select: none; -webkit-user-select: none; }
+  #cal.over-ring { cursor: zoom-in; }
+  body.month #cal { cursor: grab; }
+  body.month #cal.dragging { cursor: grabbing; }
+  text { pointer-events: none; }
+  .seg { transition: filter .15s; }
+  .seg.hover { filter: brightness(1.12) saturate(1.1); }
+
+  .glass { background: var(--material); border: 1px solid var(--material-border); box-shadow: var(--shadow);
+           -webkit-backdrop-filter: blur(24px) saturate(180%); backdrop-filter: blur(24px) saturate(180%); }
+  button { font: inherit; }
+  button:focus-visible { outline: 3px solid color-mix(in srgb, var(--accent) 55%, transparent); outline-offset: 2px; }
+
+  /* Verktygsfält */
+  .toolbar { position: fixed; top: max(14px, env(safe-area-inset-top)); left: 50%; transform: translateX(-50%);
+             display: flex; gap: 8px; z-index: 5; }
+  .segmented { position: relative; display: grid; grid-template-columns: 1fr 1fr; padding: 2px; border-radius: 10px; }
+  .segmented button { position: relative; z-index: 1; appearance: none; border: 0; background: none; color: var(--fg);
+                      font-weight: 500; min-width: 76px; padding: 6px 16px; border-radius: 8px; cursor: pointer; }
+  .segmented button[aria-selected="true"] { font-weight: 600; }
+  .segmented .thumb { position: absolute; top: 2px; bottom: 2px; left: 2px; width: calc(50% - 2px); border-radius: 8px;
+                      background: var(--thumb); box-shadow: 0 1px 4px rgba(0,0,0,.14), 0 0 0 .5px rgba(0,0,0,.04);
+                      transition: transform .35s cubic-bezier(.3,.8,.2,1); }
+  body.month .segmented .thumb { transform: translateX(100%); }
+  .pill { appearance: none; color: var(--accent); font-weight: 600; padding: 7px 14px; border-radius: 10px; cursor: pointer; }
+  @media (pointer: coarse) { .segmented button, .pill { min-height: 44px; } }
+
+  /* Infokort (månadsvy) */
+  #card { position: fixed; left: 50%; bottom: max(16px, env(safe-area-inset-bottom)); z-index: 4;
+          width: min(400px, calc(100vw - 32px)); border-radius: 16px; padding: 16px;
+          opacity: 0; transform: translate(-50%, 16px); pointer-events: none;
+          transition: opacity .25s, transform .4s cubic-bezier(.3,.8,.2,1); }
+  body.month #card { opacity: 1; transform: translate(-50%, 0); pointer-events: auto; }
+  #cEvents:not(:empty) { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--separator);
+                         display: grid; gap: 12px; max-height: 32vh; overflow: auto; }
+  .ev { display: grid; grid-template-columns: 1fr auto; gap: 2px 12px; align-items: baseline; }
+  .ev h3 { margin: 0; font-size: 15px; font-weight: 600; overflow-wrap: anywhere; }
+  .ev p { grid-column: 1 / -1; margin: 0; color: var(--secondary); white-space: pre-wrap; overflow-wrap: anywhere; }
+  .ev button { appearance: none; border: 0; background: none; color: var(--accent); font-weight: 500; padding: 0; cursor: pointer; }
+  @media (pointer: coarse) { .ev button { padding: 8px; margin: -8px; } }
+  .add { width: 100%; margin-top: 12px; appearance: none; border: 0; border-radius: 10px; padding: 9px;
+         background: color-mix(in srgb, var(--accent) 12%, transparent); color: var(--accent); font-weight: 600; cursor: pointer; }
+  .add:hover { background: color-mix(in srgb, var(--accent) 18%, transparent); }
+
+  /* Ark: händelse och säkerhetskopia */
+  dialog { border: 0; padding: 0; border-radius: 16px; width: min(420px, calc(100vw - 32px));
+           background: var(--sheet); color: var(--fg); box-shadow: 0 24px 60px rgba(0,0,0,.28); }
+  dialog[open] { animation: pop .28s cubic-bezier(.3,.8,.2,1); }
+  @keyframes pop { from { opacity: 0; transform: scale(.96); } }
+  dialog::backdrop { background: rgba(0,0,0,.28); -webkit-backdrop-filter: blur(3px); backdrop-filter: blur(3px); }
+  .sheet-form { padding: 16px; display: grid; gap: 8px; }
+  .sheet-head { display: grid; gap: 2px; margin-bottom: 4px; text-align: center; }
+  .sheet-form h2 { margin: 0; font-size: 15px; font-weight: 600; }
+  .sheet-head p { margin: 0; color: var(--secondary); font-size: 12px; }
+  .wide { appearance: none; border: 0; border-radius: 10px; min-height: 44px; padding: 10px; font-weight: 600; cursor: pointer;
+          background: var(--field); color: var(--fg); }
+  .wide.primary { margin-top: 8px; background: var(--accent); color: #fff; }
+  #backupStatus { margin: 0; text-align: center; color: var(--secondary); font-size: 12px; }
+  #backupStatus:empty { display: none; }
+  /* 16px hindrar iOS från att zooma vid fokus */
+  .sheet-form input, .sheet-form textarea { width: 100%; min-height: 44px; font: inherit; font-size: 16px; color: var(--fg); background: var(--field);
+    border: 1px solid transparent; border-radius: 10px; padding: 10px 12px; resize: vertical; }
+  .sheet-form input:focus, .sheet-form textarea:focus { outline: none; border-color: var(--accent);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 25%, transparent); }
+  .actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 4px; }
+  .actions button { appearance: none; border: 0; border-radius: 10px; min-height: 44px; padding: 10px; font-weight: 600; cursor: pointer; }
+  #sheetError { margin: 0; text-align: center; color: var(--today-ink); font-size: 12px; font-weight: 500; }
+  #fCancel { background: var(--field); color: var(--fg); }
+  #fSave { background: var(--accent); color: #fff; }
+  #fSave:disabled { opacity: .4; cursor: default; }
+  .danger { appearance: none; border: 0; background: none; color: var(--today-ink); font-weight: 600; min-height: 44px; margin-top: 8px;
+            padding: 10px; border-radius: 10px; cursor: pointer; }
+  .danger.confirm { background: var(--today-ink); color: #fff; }
+  .card-top { display: flex; justify-content: space-between; gap: 12px; color: var(--secondary); font-size: 12px; font-weight: 500; }
+  .card-title { display: flex; align-items: center; gap: 8px; margin-top: 4px; font-size: 19px; font-weight: 600; letter-spacing: -.012em; }
+  .dot { width: 10px; height: 10px; border-radius: 50%; flex: none; }
+  .tag { margin-left: auto; font-size: 11px; font-weight: 700; color: #fff; background: var(--today-ink); padding: 2px 7px; border-radius: 6px; }
+  .bar { height: 4px; border-radius: 2px; background: var(--separator); margin: 12px 0 8px; overflow: hidden; }
+  .bar span { display: block; height: 100%; border-radius: 2px; }
+  .card-sub { display: flex; justify-content: space-between; gap: 12px; color: var(--secondary); font-size: 12px; }
+  .card-sub b { color: var(--fg); font-weight: 600; }
+
+  /* Kortkommandon (dagvy, bara med muspekare och brett fönster) */
+  #keys { position: fixed; left: max(16px, env(safe-area-inset-left)); bottom: max(16px, env(safe-area-inset-bottom));
+          z-index: 3; border-radius: 12px; padding: 12px; display: none; grid-template-columns: auto auto; gap: 6px 10px;
+          font-size: 12px; color: var(--secondary); opacity: 0; pointer-events: none; transition: opacity .25s; }
+  #keys kbd { font: inherit; font-weight: 600; color: var(--fg); justify-self: end; }
+  @media (hover: hover) and (min-width: 900px) { #keys { display: grid; } }
+  body.month #keys { opacity: 1; }
+
+  /* Verktygstips och introduktion */
+  #tip { position: fixed; left: 0; top: 0; z-index: 6; border-radius: 12px; padding: 8px 12px; white-space: nowrap;
+         pointer-events: none; opacity: 0; transition: opacity .12s; }
+  #tip.show { opacity: 1; }
+  #tip b { display: block; font-weight: 600; }
+  #tip span { color: var(--secondary); font-size: 12px; }
+  #coach { position: fixed; left: 50%; bottom: max(24px, env(safe-area-inset-bottom)); transform: translateX(-50%); z-index: 3;
+           border-radius: 10px; padding: 8px 16px; font-weight: 400; color: var(--secondary); white-space: nowrap; transition: opacity .3s;
+           box-shadow: none; }   /* ett tips, inte en knapp */
+  #coach.gone, body.month #coach { opacity: 0; pointer-events: none; }
+
+  @media (prefers-reduced-motion: reduce) { *, *::before { transition: none !important; animation: none !important; } }
+</style>
+</head>
+<body>
+<svg id="cal" role="application">
+  <defs>
+    <pattern id="stripes" patternUnits="userSpaceOnUse" width="7" height="7" patternTransform="rotate(45)">
+      <rect width="2.5" height="7" fill="#fff" fill-opacity=".18"/>
+    </pattern>
+  </defs>
+</svg>
+
+<nav class="toolbar">
+  <div class="segmented glass" role="tablist" aria-label="Vy">
+    <span class="thumb"></span>
+    <button role="tab" id="modeYear" aria-selected="true">År</button>
+    <button role="tab" id="modeMonth" aria-selected="false">Dag</button>
+  </div>
+  <button class="pill glass" id="todayBtn">Idag</button>
+  <button class="pill glass" id="menuBtn" aria-label="Säkerhetskopia" title="Säkerhetskopia">⋯</button>
+</nav>
+
+<section id="card" class="glass" inert>
+  <div class="card-top"><span id="cDate"></span><span id="cWeek"></span></div>
+  <div class="card-title"><span class="dot" id="cDot"></span><span id="cTitle"></span><span class="tag" id="cToday">Idag</span></div>
+  <div class="bar" id="cBarWrap"><span id="cBar"></span></div>
+  <div class="card-sub"><span id="cProg"></span><span id="cNext"></span></div>
+  <div id="cEvents"></div>
+  <button class="add" id="addBtn">+ Lägg till händelse</button>
+</section>
+
+<dialog id="sheet" aria-labelledby="sheetTitle">
+  <form id="sheetForm" class="sheet-form">
+    <div class="sheet-head">
+      <h2 id="sheetTitle">Ny händelse</h2>
+      <p id="sheetDate"></p>
+    </div>
+    <input id="fTitle" placeholder="Titel" maxlength="80" autocomplete="off">
+    <textarea id="fDesc" placeholder="Beskrivning" rows="4"></textarea>
+    <p id="sheetError" role="alert" hidden>Kunde inte spara. Webbläsaren tillåter inte lagring just nu.</p>
+    <div class="actions">
+      <button type="button" id="fCancel">Avbryt</button>
+      <button type="submit" id="fSave">Lägg till</button>
+    </div>
+    <button type="button" id="fDelete" class="danger">Ta bort händelse</button>
+  </form>
+</dialog>
+
+<dialog id="backup" aria-labelledby="backupTitle">
+  <div class="sheet-form">
+    <div class="sheet-head">
+      <h2 id="backupTitle">Säkerhetskopia</h2>
+      <p>Händelserna sparas bara på den här enheten. Exportera dem för att kunna flytta dem eller få tillbaka dem.</p>
+    </div>
+    <button type="button" class="wide" id="exportBtn">Exportera händelser</button>
+    <button type="button" class="wide" id="importBtn">Importera från fil</button>
+    <input type="file" id="importFile" accept=".json,application/json" hidden>
+    <p id="backupStatus" role="status"></p>
+    <button type="button" class="wide primary" id="backupClose">Klar</button>
+  </div>
+</dialog>
+
+<div id="keys" class="glass">
+  <kbd>← →</kbd><span>Dag</span>
+  <kbd>⇧ ← →</kbd><span>Vecka</span>
+  <kbd class="today-key">T</kbd><span class="today-key">Idag</span>
+  <kbd>Esc</kbd><span>År</span>
+</div>
+<div id="tip" class="glass" role="tooltip"><b></b><span></span></div>
+<div id="coach" class="glass"></div>
+
+<script src="data.js"></script>
+<script src="time.js"></script>
+<script src="storage.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

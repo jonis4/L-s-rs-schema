@@ -1,0 +1,9 @@
+{
+  "name": "lasar",
+  "private": true,
+  "description": "Cirkelkalender över läsåret. Inga beroenden och inget byggsteg.",
+  "scripts": {
+    "test": "node --test",
+    "icons": "node tools/make-icons.js"
+  }
+}
