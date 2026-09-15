@@ -89,6 +89,7 @@
     box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 25%, transparent); }
   .actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 4px; }
   .actions button { appearance: none; border: 0; border-radius: 10px; padding: 10px; font-weight: 600; cursor: pointer; }
+  #sheetError { margin: 0; text-align: center; color: var(--today); font-size: 12px; font-weight: 500; }
   #fCancel { background: var(--field); color: var(--fg); }
   #fSave { background: var(--accent); color: #fff; }
   #fSave:disabled { opacity: .4; cursor: default; }
@@ -103,19 +104,13 @@
   .card-sub { display: flex; justify-content: space-between; gap: 12px; color: var(--secondary); font-size: 12px; }
   .card-sub b { color: var(--fg); font-weight: 600; }
 
-  /* Teckenförklaring */
-  #legend { position: fixed; left: max(16px, env(safe-area-inset-left)); bottom: max(16px, env(safe-area-inset-bottom));
-            z-index: 3; border-radius: 14px; padding: 10px 12px; display: grid; gap: 6px; font-size: 12px; color: var(--secondary); }
-  #legend span { display: flex; align-items: center; gap: 8px; }
-  .sw { width: 22px; height: 10px; border-radius: 3px; }
-  .sw.lekt, .sw.tenta { background: linear-gradient(90deg, var(--lp1) 0 25%, var(--lp2) 25% 50%, var(--lp3) 50% 75%, var(--lp4) 75%); }
-  .sw.tenta { background-image: repeating-linear-gradient(135deg, rgba(255,255,255,.4) 0 1.5px, transparent 1.5px 4px),
-                                linear-gradient(90deg, var(--lp1) 0 25%, var(--lp2) 25% 50%, var(--lp3) 50% 75%, var(--lp4) 75%);
-              box-shadow: inset 0 0 0 20px rgba(0,0,0,.2); }
-  .sw.re { background: repeating-linear-gradient(135deg, rgba(255,255,255,.4) 0 1.5px, transparent 1.5px 4px), var(--re); }
-  .sw.thin { height: 3px; background: var(--secondary); }
-  .sw.ev { width: 8px; height: 8px; border-radius: 50%; margin: 0 7px; background: var(--fg); }
-  @media (max-width: 899px) { #legend { display: none; } }
+  /* Kortkommandon (dagvy, bara med muspekare och brett fönster) */
+  #keys { position: fixed; left: max(16px, env(safe-area-inset-left)); bottom: max(16px, env(safe-area-inset-bottom));
+          z-index: 3; border-radius: 14px; padding: 10px 12px; display: none; grid-template-columns: auto auto; gap: 6px 10px;
+          font-size: 12px; color: var(--secondary); opacity: 0; pointer-events: none; transition: opacity .25s; }
+  #keys kbd { font: inherit; font-weight: 600; color: var(--fg); justify-self: end; }
+  @media (hover: hover) and (min-width: 900px) { #keys { display: grid; } }
+  body.month #keys { opacity: 1; }
 
   /* Verktygstips och introduktion */
   #tip { position: fixed; left: 0; top: 0; z-index: 6; border-radius: 10px; padding: 7px 10px; white-space: nowrap;
@@ -127,7 +122,7 @@
            border-radius: 999px; padding: 8px 16px; font-weight: 500; color: var(--secondary); white-space: nowrap; transition: opacity .3s; }
   #coach.gone, body.month #coach { opacity: 0; pointer-events: none; }
 
-  @media (prefers-reduced-motion: reduce) { *, *::before { transition: none !important; } }
+  @media (prefers-reduced-motion: reduce) { *, *::before { transition: none !important; animation: none !important; } }
 </style>
 </head>
 <body>
@@ -143,12 +138,12 @@
   <div class="segmented glass" role="tablist" aria-label="Vy">
     <span class="thumb"></span>
     <button role="tab" id="modeYear" aria-selected="true">År</button>
-    <button role="tab" id="modeMonth" aria-selected="false">Månad</button>
+    <button role="tab" id="modeMonth" aria-selected="false">Dag</button>
   </div>
   <button class="pill glass" id="todayBtn">Idag</button>
 </nav>
 
-<section id="card" class="glass">
+<section id="card" class="glass" inert>
   <div class="card-top"><span id="cDate"></span><span id="cWeek"></span></div>
   <div class="card-title"><span class="dot" id="cDot"></span><span id="cTitle"></span><span class="tag" id="cToday">Idag</span></div>
   <div class="bar" id="cBarWrap"><span id="cBar"></span></div>
@@ -163,6 +158,7 @@
     <p id="sheetDate"></p>
     <input id="fTitle" placeholder="Titel" maxlength="80" autocomplete="off">
     <textarea id="fDesc" placeholder="Beskrivning" rows="4"></textarea>
+    <p id="sheetError" role="alert" hidden>Kunde inte spara. Webbläsaren tillåter inte lagring just nu.</p>
     <div class="actions">
       <button type="button" id="fCancel">Avbryt</button>
       <button type="submit" id="fSave">Lägg till</button>
@@ -171,12 +167,11 @@
   </form>
 </dialog>
 
-<div id="legend" class="glass" aria-hidden="true">
-  <span><i class="sw lekt"></i>Lektioner</span>
-  <span><i class="sw tenta"></i>Tenta-P</span>
-  <span><i class="sw re"></i>Omtenta-P</span>
-  <span><i class="sw thin"></i>Officiell läsperiod</span>
-  <span><i class="sw ev"></i>Händelse</span>
+<div id="keys" class="glass">
+  <kbd>← →</kbd><span>Dag</span>
+  <kbd>⇧ ← →</kbd><span>Vecka</span>
+  <kbd class="today-key">T</kbd><span class="today-key">Idag</span>
+  <kbd>Esc</kbd><span>År</span>
 </div>
 <div id="tip" class="glass" role="tooltip"><b></b><span></span></div>
 <div id="coach" class="glass"></div>
@@ -253,7 +248,7 @@ function isoWeek(t) {
   const d = new Date(t + (3 - (new Date(t).getUTCDay() + 6) % 7) * DAY);
   return Math.ceil(((d - Date.UTC(d.getUTCFullYear(), 0, 1)) / DAY + 1) / 7);
 }
-const segTitle = s => s.type === "lekt" ? `LP${s.lp} · Lektioner` : s.type === "tenta" ? `Tenta-P · LP${s.lp}` : "Omtenta-P";
+const segTitle = s => s.type === "lekt" ? `LP${s.lp} · Lektioner` : s.type === "tenta" ? `LP${s.lp} · Tenta-P` : "Omtenta-P";
 const segColor = s => s.type === "omtenta" ? "var(--re)" : `var(--lp${s.lp})`;
 const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
 
@@ -265,19 +260,30 @@ function describe(t) {
   if (s) {
     r.title = weekend && s.type === "lekt" ? `LP${s.lp} · Helg` : segTitle(s);
     r.color = segColor(s);
-    r.prog = [(t - s.t0) / DAY + 1, nDays(s)];
+    // En läsperiods lektioner kan vara uppdelade i flera poster; räkna över hela perioden
+    const parts = s.lp ? SEG.filter(x => x.type === s.type && x.lp === s.lp) : [s];
+    const t0 = Math.min(...parts.map(x => x.t0)), t1 = Math.max(...parts.map(x => x.t1));
+    r.prog = [(t - t0) / DAY + 1, (t1 - t0) / DAY];
   } else if (b) {
     r.title = b.name; r.prog = [(t - b.t0) / DAY + 1, nDays(b)];
   } else {
     r.title = weekend ? "Helg" : "Ingen undervisning";
   }
   if (o && o.name.startsWith("Läs")) r.lasvecka = Math.floor((t - o.t0) / (7 * DAY)) + 1;
-  const nx = SEG.find(x => x.t0 > t && !(s && x.type === s.type && x.lp === s.lp));
-  if (nx) {
-    const n = (nx.t0 - t) / DAY;
-    r.next = [segTitle(nx), n < 14 ? `om ${plural(n, "dag", "dagar")}` : `om ${plural(Math.round(n / 7), "vecka", "veckor")}`];
-  }
+  // Omtentor hoppas över: de flesta skriver dem inte, och de skymmer den egna tentaperioden
+  const nx = SEG.find(x => x.t0 > t && x.type !== "omtenta" && !(s && x.type === s.type && x.lp === s.lp));
+  if (nx) r.next = [segTitle(nx), until((nx.t0 - t) / DAY)];
   return r;
+}
+const until = n => n === 0 ? "idag" : n === 1 ? "imorgon"
+  : n < 14 ? `om ${plural(n, "dag", "dagar")}` : `om ${plural(Math.round(n / 7), "vecka", "veckor")}`;
+// Hur långt en dag ligger från idag, i dagar
+function fromToday(t) {
+  const n = (t - TODAY) / DAY;
+  if (n === 0) return "";
+  if (n === 1) return "imorgon";
+  if (n === -1) return "igår";
+  return n > 0 ? `om ${plural(n, "dag", "dagar")}` : `för ${plural(-n, "dag", "dagar")} sedan`;
 }
 
 // ============ SVG-bygge ============
@@ -415,14 +421,24 @@ for (const o of OFF) {
 // Årstider och idag-status i mitten (årsvy)
 for (const [s, a] of [["VINTER", 0], ["HÖST", Math.PI / 2], ["SOMMAR", Math.PI], ["VÅR", -Math.PI / 2]])
   label(overview, 152, a, [[s, 10, 600]], { fill: "var(--tertiary)" });
-{
+// Byggs om när händelser ändras, eftersom nästa egna händelse visas här
+let centerLabel = null;
+function buildCenter() {
+  if (centerLabel) { centerLabel.el.remove(); labels = labels.filter(l => l !== centerLabel); }
+  if (!todayInYear) {
+    centerLabel = makeText(overview, cx, cy, [["LÄSÅR", 11, 700, "var(--secondary)"], ["26/27", 34, 700]], "var(--fg)");
+    return;
+  }
   const info = describe(TODAY);
-  makeText(overview, cx, cy, todayInYear ? [
+  const lines = [
     ["IDAG", 11, 700, "var(--today)"],
     [`v. ${info.week}`, 34, 700],
     [info.title, 13, 600, "var(--secondary)"],
     [info.next ? `${info.next[0]} ${info.next[1]}` : "", 12, 400, "var(--tertiary)"],
-  ] : [["LÄSÅR", 11, 700, "var(--secondary)"], ["26/27", 34, 700]], "var(--fg)");
+  ];
+  const ev = events.filter(e => e.date >= TODAY && e.date < END).sort((a, b) => a.date - b.date)[0];
+  if (ev) lines.push([`${trunc(ev.title, 18)} ${until((ev.date - TODAY) / DAY)}`, 12, 400, "var(--tertiary)"]);
+  centerLabel = makeText(overview, cx, cy, lines, "var(--fg)");
 }
 
 // Fokuslinje (månadsvy) och idag-markör
@@ -432,7 +448,6 @@ if (todayInYear) {
   const a = centerAngle(TODAY);
   line(topG, INNER, OUTER, a, { stroke: "var(--today)", "stroke-width": 2, "stroke-linecap": "round" });
   todayDot = el(topG, "circle", { cx: pt(OUTER, a)[0], cy: pt(OUTER, a)[1], r: 4, fill: "var(--today)" });
-  label(overview, 362, a, [["Idag", 12, 700]], { fill: "var(--today)" });
 }
 
 // ============ Vy, zoom och rörelse ============
@@ -537,16 +552,19 @@ function setMode(m) {
   document.body.classList.toggle("month", m === "month");
   $("modeYear").setAttribute("aria-selected", m === "year");
   $("modeMonth").setAttribute("aria-selected", m === "month");
+  $("card").inert = m !== "month";
   hideTip();
   if (m === "month") dismissCoach();
 }
 function zoomTo(t) { setMode("month"); animateTo(1, centerAngle(t)); }
 function zoomOut() { setMode("year"); animateTo(0, view.f); }
-const goToday = () => zoomTo(todayInYear ? TODAY : dayAt(view.f));
+const goToday = () => { if (todayInYear) zoomTo(TODAY); };
 
 $("modeYear").onclick = zoomOut;
-$("modeMonth").onclick = () => mode === "month" ? snap() : goToday();
+$("modeMonth").onclick = () => mode === "month" ? snap() : zoomTo(dayAt(view.f));
 $("todayBtn").onclick = goToday;
+$("todayBtn").hidden = !todayInYear;
+document.querySelectorAll(".today-key").forEach(k => k.hidden = !todayInYear);
 
 // ============ Infokort ============
 let cardT = null;
@@ -566,13 +584,13 @@ function updateCard(t) {
     $("cBar").style.background = info.color;
   }
   $("cProg").textContent = info.prog ? `Dag ${info.prog[0]} av ${info.prog[1]}` : "";
-  $("cNext").innerHTML = info.next ? `${info.next[0]} <b>${info.next[1]}</b>` : "";
+  $("cNext").textContent = todayInYear ? fromToday(t) : "";
 }
 
 // ============ Introduktion ============
 const coach = $("coach");
 coach.textContent = matchMedia("(hover: hover)").matches
-  ? "Klicka på hjulet för att zooma in" : "Tryck på hjulet för att zooma in";
+  ? "Klicka på kalendern för att zooma in" : "Tryck på kalendern för att zooma in";
 try { if (localStorage.getItem("hjul-coach") === "1") coach.classList.add("gone"); } catch {}
 function dismissCoach() {
   coach.classList.add("gone");
@@ -629,12 +647,15 @@ function hover(ev) {
 let drag = null;
 svg.addEventListener("pointerdown", ev => {
   if (ev.button !== 0) return;
-  drag = { x0: ev.clientX, y0: ev.clientY, lx: ev.clientX, ly: ev.clientY, lt: ev.timeStamp,
-           moved: false, v: 0, r: clamp(hit(ev).r, 200, 360) };
+  // Ett andra finger får inte ta över draget, och gör att släppet inte räknas som tryck
+  if (!ev.isPrimary) { if (drag) drag.multi = true; return; }
+  drag = { id: ev.pointerId, x0: ev.clientX, y0: ev.clientY, lx: ev.clientX, ly: ev.clientY, lt: ev.timeStamp,
+           moved: false, multi: false, v: 0, r: clamp(hit(ev).r, 200, 360) };
   svg.setPointerCapture(ev.pointerId);
 });
 svg.addEventListener("pointermove", ev => {
   if (!drag) return hover(ev);
+  if (ev.pointerId !== drag.id) return;
   if (!drag.moved && Math.hypot(ev.clientX - drag.x0, ev.clientY - drag.y0) > 6) {
     drag.moved = true;
     if (mode === "month") { cancelAnimationFrame(anim); svg.classList.add("dragging"); }
@@ -649,10 +670,10 @@ svg.addEventListener("pointermove", ev => {
   drag.lx = ev.clientX; drag.ly = ev.clientY; drag.lt = ev.timeStamp;
 });
 function endDrag(ev, cancelled) {
+  if (!drag || ev.pointerId !== drag.id) return;
   svg.classList.remove("dragging");
-  if (!drag) return;
   const d = drag; drag = null;
-  if (!d.moved && !cancelled) {
+  if (!d.moved && !cancelled && !d.multi) {
     const h = hit(ev);
     if (h.r < INNER) { if (mode === "month") zoomOut(); }
     else if (h.r <= OUTER + 30) zoomTo(h.t);
@@ -697,14 +718,22 @@ addEventListener("resize", () => { layoutCallouts(kZoom()); render(); });
 // ============ Händelser ============
 const STORE = "hjul-handelser";
 let events = [];
-try { events = JSON.parse(localStorage.getItem(STORE)) || []; } catch {}
-const saveEvents = () => { try { localStorage.setItem(STORE, JSON.stringify(events)); } catch {} };
+try {
+  const saved = JSON.parse(localStorage.getItem(STORE));
+  if (Array.isArray(saved)) events = saved.filter(e => e && typeof e.date === "number" && typeof e.title === "string");
+} catch {}
+// Byter bara ut listan om den gick att spara
+function saveEvents(next) {
+  try { localStorage.setItem(STORE, JSON.stringify(next)); } catch { return false; }
+  events = next;
+  return true;
+}
 const eventsOn = t => events.filter(e => e.date === t);
 const EV_R = 336;             // händelsepricken ligger i ytterbandet
 let eventDots = [];
 
 function fmtDate(t) {
-  const s = new Date(t).toLocaleDateString("sv-SE", { weekday: "long", day: "numeric", month: "long", timeZone: "UTC" });
+  const s = new Date(t).toLocaleDateString("sv-SE", { weekday: "long", day: "numeric", month: "long", year: "numeric", timeZone: "UTC" });
   return s[0].toUpperCase() + s.slice(1);
 }
 const trunc = (s, n = 26) => s.length > n ? s.slice(0, n - 1) + "…" : s;
@@ -750,7 +779,7 @@ function renderEventList(t) {
 }
 
 // Ark för att skapa/redigera
-const sheet = $("sheet"), fTitle = $("fTitle"), fDesc = $("fDesc"), fSave = $("fSave"), fDelete = $("fDelete");
+const sheet = $("sheet"), fTitle = $("fTitle"), fDesc = $("fDesc"), fSave = $("fSave"), fDelete = $("fDelete"), sheetError = $("sheetError");
 let editing = null, editDate = null;
 function openSheet(t, ev = null) {
   editing = ev; editDate = t;
@@ -763,14 +792,27 @@ function openSheet(t, ev = null) {
   fDelete.hidden = !ev;
   fDelete.classList.remove("confirm");
   fDelete.textContent = "Ta bort händelse";
+  sheetError.hidden = true;
   sheet.showModal();
   fTitle.focus();
 }
-function commitEvents() {
-  saveEvents();
+const dirty = () => fTitle.value !== (editing?.title ?? "") || fDesc.value !== (editing?.desc ?? "");
+function commitEvents(next) {
+  if (!saveEvents(next)) {
+    sheetError.hidden = false;
+    return false;
+  }
   drawEvents();
+  buildCenter();
   cardT = null;
   render();
+  return true;
+}
+function saveSheet(title, desc) {
+  const next = editing
+    ? events.map(e => e === editing ? { ...e, title, desc } : e)
+    : [...events, { id: String(Date.now()) + Math.random().toString(36).slice(2, 7), date: editDate, title, desc }];
+  return commitEvents(next);
 }
 fTitle.addEventListener("input", () => fSave.disabled = !fTitle.value.trim());
 fDesc.addEventListener("keydown", e => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) $("sheetForm").requestSubmit(); });
@@ -778,10 +820,21 @@ $("sheetForm").addEventListener("submit", e => {
   e.preventDefault();
   const title = fTitle.value.trim(), desc = fDesc.value.trim();
   if (!title) return;
-  if (editing) Object.assign(editing, { title, desc });
-  else events.push({ id: String(Date.now()) + Math.random().toString(36).slice(2, 7), date: editDate, title, desc });
-  commitEvents();
-  sheet.close();
+  if (saveSheet(title, desc)) sheet.close();
+});
+// Esc behåller det man skrivit. Utan titel blir beskrivningens första rad titel.
+// Sparandet sker direkt, eftersom webbläsaren inte alltid låter oss hindra att arket stängs.
+sheet.addEventListener("cancel", e => {
+  if (fDelete.classList.contains("confirm")) {
+    e.preventDefault();
+    fDelete.classList.remove("confirm");
+    fDelete.textContent = "Ta bort händelse";
+    return;
+  }
+  if (!dirty()) return;
+  const desc = fDesc.value.trim();
+  const title = fTitle.value.trim() || trunc(desc.split("\n")[0].trim(), 80);
+  if (title && !saveSheet(title, desc)) e.preventDefault();
 });
 $("fCancel").onclick = () => sheet.close();
 fDelete.onclick = () => {
@@ -790,14 +843,16 @@ fDelete.onclick = () => {
     fDelete.textContent = "Bekräfta borttagning";
     return;
   }
-  events = events.filter(e => e !== editing);
-  commitEvents();
-  sheet.close();
+  if (commitEvents(events.filter(e => e !== editing))) sheet.close();
 };
-sheet.addEventListener("click", e => { if (e.target === sheet) sheet.close(); });   // klick utanför arket
+// Klick utanför arket stänger bara om klicket började där och inget har skrivits
+let downOutside = false;
+sheet.addEventListener("pointerdown", e => downOutside = e.target === sheet);
+sheet.addEventListener("click", e => { if (e.target === sheet && downOutside && !dirty()) sheet.close(); });
 $("addBtn").onclick = () => { cancelAnimationFrame(anim); snap(); openSheet(dayAt(view.f)); };
 
 drawEvents();
+buildCenter();
 render();
 </script>
 </body>
