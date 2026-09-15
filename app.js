@@ -87,6 +87,9 @@ const base = el(world, "g", {});
 const detail = el(world, "g", {});
 const detailBg = el(detail, "g", {}), detailText = el(detail, "g", {});
 const leaderG = el(detail, "g", {}), calloutG = el(detail, "g", {});
+// Slöja i dag-läget: täcker bandets inre del så att perioden blir ett färgat streck vid dagkolumnen
+// och namnet står på lugn bakgrund. Geometri, träffytor och etikettanpassning är oförändrade.
+el(detailBg, "circle", { cx, cy, r: 231.5, fill: "none", stroke: "var(--bg)", "stroke-width": 71 });
 const eventG = el(world, "g", {});
 const overview = el(world, "g", {});
 const topG = el(world, "g", {});
@@ -136,7 +139,8 @@ for (const s of SEG) {
   const fit = { arc: THICK_MID * nDays(s) * DPD, thick: THICK_OUT - THICK_IN, fill: "var(--on-fill)" };
   const title = s.type === "lekt" ? `LP${s.lp} · Lektioner` : s.type === "tenta" ? "Tenta-P" : "Omtenta-P";
   label(overview, THICK_MID, mid, [[s.type === "lekt" ? `LP${s.lp}` : title.replace("-P", ""), s.type === "lekt" ? 17 : 11, 700]], fit);
-  const inside = label(detailText, THICK_MID, mid, [[title, 13, 700], [range(s), 11, 500]], { ...fit, ...DAY_VIEW });
+  // I dag-läget står namnet på slöjan, inte på färgen
+  const inside = label(detailText, THICK_MID, mid, [[title, 13, 700], [range(s), 11, 500, "var(--secondary)"]], { ...fit, fill: "var(--fg)", ...DAY_VIEW });
   callout(inside, mid, [[segTitle(s), 12, 600], [range(s), 11, 400, "var(--secondary)"]], segColor(s));
 }
 
@@ -160,6 +164,8 @@ for (const o of OFF) {
 
 // Idag-status i mitten (årsvy). Byggs om när händelser ändras, eftersom nästa egna händelse visas här
 let centerLabel = null;
+// "LP1 · Tenta-P" blir "Tenta-P" när titeln ovanför redan säger LP1. Byter läsperiod står den kvar.
+const sameLP = (title, next) => { const lp = title.match(/^LP\d · /)?.[0]; return lp && next.startsWith(lp) ? next.slice(lp.length) : next; };
 function buildCenter() {
   if (centerLabel) { centerLabel.el.remove(); labels = labels.filter(l => l !== centerLabel); }
   lastK = NaN;
@@ -175,10 +181,10 @@ function buildCenter() {
     ["IDAG", 11, 700, "var(--today-ink)"],
     [`v. ${info.week}`, 34, 700],
     [info.title, 15, 600],
-    [info.next ? `${info.next[0]} ${info.next[1]}` : "", 12, 400, "var(--secondary)"],
+    [info.next ? `${sameLP(info.title, info.next[0])} ${info.next[1]}` : "", 12, 400, "var(--secondary)"],
   ];
   const ev = events.filter(e => e.date >= TODAY && e.date < END).sort((a, b) => a.date - b.date)[0];
-  if (ev) lines.push([`${trunc(ev.title, 18)} ${until((ev.date - TODAY) / DAY)}`, 12, 400, "var(--secondary)"]);
+  if (ev) lines.push([`${trunc(ev.title, 24)} ${until((ev.date - TODAY) / DAY)}`, 12, 400, "var(--secondary)"]);
   centerLabel = makeText(overview, cx, cy, lines, "var(--fg)");
 }
 
@@ -186,10 +192,12 @@ function buildCenter() {
 const dayField = el(topG, "path", { fill: "var(--fg)", "fill-opacity": .08 });
 // Idag-markör: kontur i bakgrundsfärg så att linjen skiljer sig mot alla LP-färger.
 // Linjen slutar vid bandet, så att månadsnamnet utanför inte korsas.
+// I dag-läget markeras idag av cirkeln runt dagnumret, och strecket skulle löpa löst över slöjan.
+const todayMark = el(topG, "g", {});
 if (todayInYear) {
   const a = centerAngle(TODAY);
-  line(topG, INNER, THICK_OUT, a, { stroke: "var(--bg)", "stroke-width": 4, "stroke-linecap": "round" });
-  line(topG, INNER, THICK_OUT, a, { stroke: "var(--today)", "stroke-width": 2, "stroke-linecap": "round" });
+  line(todayMark, INNER, THICK_OUT, a, { stroke: "var(--bg)", "stroke-width": 4, "stroke-linecap": "round" });
+  line(todayMark, INNER, THICK_OUT, a, { stroke: "var(--today)", "stroke-width": 2, "stroke-linecap": "round" });
 }
 
 // ============ Vy, zoom och rörelse ============
@@ -275,6 +283,8 @@ function render() {
       l.el.style.display = K <= l.kMax ? "" : "none";
     }
     stripes.setAttribute("patternTransform", `rotate(45) scale(${K})`);
+    // Coach-hinten strax under ringen i årsvyn, men aldrig nedanför skärmen
+    $("coach").style.top = `${Math.min(H / 2 + OUTER / k0 + 16, H - 56)}px`;
     for (const d of eventDots) d.setAttribute("r", 2.5 * K);
     if (todayNum) {
       todayNum.circle.setAttribute("r", 8 * K);
@@ -284,6 +294,7 @@ function render() {
 
   dayField.setAttribute("d", sectorD(THICK_OUT, DAY_EDGE, view.f + DPD / 2, view.f - DPD / 2));
   dayField.style.opacity = zo;
+  todayMark.style.opacity = 1 - zo;
   if (zo > 0) updateCard(dayAt(view.f));
 }
 
