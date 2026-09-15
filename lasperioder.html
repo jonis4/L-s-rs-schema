@@ -1,0 +1,804 @@
+<!doctype html>
+<html lang="sv">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<title>Läsår 26/27</title>
+<style>
+  :root {
+    --bg: #f5f5f7; --fg: #1d1d1f; --secondary: #6e6e73; --tertiary: #a1a1a6;
+    --separator: rgba(60,60,67,.16); --track: #e8e8ed; --weekend: rgba(60,60,67,.07);
+    --material: rgba(255,255,255,.72); --material-border: rgba(0,0,0,.06); --thumb: #fff;
+    --shadow: 0 12px 32px rgba(0,0,0,.08), 0 1px 2px rgba(0,0,0,.06);
+    --lp1: #e67e00; --lp2: #007aff; --lp3: #0f9bb5; --lp4: #1fa447;
+    --nolle: #af52de; --re: #8e8e93; --today: #ff3b30; --accent: #007aff;
+    --sheet: #fff; --field: rgba(118,118,128,.12);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #000; --fg: #f5f5f7; --secondary: #98989d; --tertiary: #636366;
+      --separator: rgba(84,84,88,.55); --track: #161618; --weekend: rgba(255,255,255,.05);
+      --material: rgba(38,38,40,.72); --material-border: rgba(255,255,255,.08); --thumb: #636366;
+      --shadow: 0 12px 32px rgba(0,0,0,.5);
+      --lp1: #ff9f0a; --lp2: #0a84ff; --lp3: #40c8e0; --lp4: #30d158;
+      --nolle: #bf5af2; --re: #7c7c80; --today: #ff453a; --accent: #0a84ff;
+      --sheet: #1c1c1e; --field: rgba(118,118,128,.24);
+    }
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; overflow: hidden; background: var(--bg); color: var(--fg);
+    font: 13px/1.35 -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased; font-variant-numeric: tabular-nums; }
+
+  #cal { position: fixed; inset: 0; width: 100vw; height: 100vh; height: 100dvh; display: block;
+         touch-action: none; user-select: none; -webkit-user-select: none; }
+  #cal.over-ring { cursor: zoom-in; }
+  body.month #cal { cursor: grab; }
+  body.month #cal.dragging { cursor: grabbing; }
+  text { pointer-events: none; }
+  .seg { transition: filter .15s; }
+  .seg.hover { filter: brightness(1.12) saturate(1.1); }
+
+  .glass { background: var(--material); border: 1px solid var(--material-border); box-shadow: var(--shadow);
+           -webkit-backdrop-filter: blur(24px) saturate(180%); backdrop-filter: blur(24px) saturate(180%); }
+  button { font: inherit; }
+  button:focus-visible { outline: 3px solid color-mix(in srgb, var(--accent) 55%, transparent); outline-offset: 2px; }
+
+  /* Verktygsfält */
+  .toolbar { position: fixed; top: max(14px, env(safe-area-inset-top)); left: 50%; transform: translateX(-50%);
+             display: flex; gap: 8px; z-index: 5; }
+  .segmented { position: relative; display: grid; grid-template-columns: 1fr 1fr; padding: 2px; border-radius: 10px; }
+  .segmented button { position: relative; z-index: 1; appearance: none; border: 0; background: none; color: var(--fg);
+                      font-weight: 500; min-width: 76px; padding: 6px 16px; border-radius: 8px; cursor: pointer; }
+  .segmented button[aria-selected="true"] { font-weight: 600; }
+  .segmented .thumb { position: absolute; top: 2px; bottom: 2px; left: 2px; width: calc(50% - 2px); border-radius: 8px;
+                      background: var(--thumb); box-shadow: 0 1px 4px rgba(0,0,0,.14), 0 0 0 .5px rgba(0,0,0,.04);
+                      transition: transform .35s cubic-bezier(.3,.8,.2,1); }
+  body.month .segmented .thumb { transform: translateX(100%); }
+  .pill { appearance: none; color: var(--accent); font-weight: 600; padding: 7px 14px; border-radius: 10px; cursor: pointer; }
+
+  /* Infokort (månadsvy) */
+  #card { position: fixed; left: 50%; bottom: max(16px, env(safe-area-inset-bottom)); z-index: 4;
+          width: min(400px, calc(100vw - 32px)); border-radius: 18px; padding: 13px 16px 12px;
+          opacity: 0; transform: translate(-50%, 16px); pointer-events: none;
+          transition: opacity .25s, transform .4s cubic-bezier(.3,.8,.2,1); }
+  body.month #card { opacity: 1; transform: translate(-50%, 0); pointer-events: auto; }
+  #cEvents:not(:empty) { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--separator);
+                         display: grid; gap: 10px; max-height: 32vh; overflow: auto; }
+  .ev { display: grid; grid-template-columns: 1fr auto; gap: 2px 12px; align-items: baseline; }
+  .ev h3 { margin: 0; font-size: 15px; font-weight: 600; overflow-wrap: anywhere; }
+  .ev p { grid-column: 1 / -1; margin: 0; color: var(--secondary); white-space: pre-wrap; overflow-wrap: anywhere; }
+  .ev button { appearance: none; border: 0; background: none; color: var(--accent); font-weight: 500; padding: 0; cursor: pointer; }
+  .add { width: 100%; margin-top: 10px; appearance: none; border: 0; border-radius: 10px; padding: 9px;
+         background: color-mix(in srgb, var(--accent) 12%, transparent); color: var(--accent); font-weight: 600; cursor: pointer; }
+  .add:hover { background: color-mix(in srgb, var(--accent) 18%, transparent); }
+
+  /* Ark för att skapa/redigera händelse */
+  dialog { border: 0; padding: 0; border-radius: 16px; width: min(420px, calc(100vw - 32px));
+           background: var(--sheet); color: var(--fg); box-shadow: 0 24px 60px rgba(0,0,0,.28); }
+  dialog[open] { animation: pop .28s cubic-bezier(.3,.8,.2,1); }
+  @keyframes pop { from { opacity: 0; transform: scale(.96); } }
+  dialog::backdrop { background: rgba(0,0,0,.28); -webkit-backdrop-filter: blur(3px); backdrop-filter: blur(3px); }
+  #sheetForm { padding: 18px; display: grid; gap: 10px; }
+  #sheetForm h2 { margin: 0; font-size: 17px; font-weight: 650; text-align: center; }
+  #sheetDate { margin: -6px 0 4px; text-align: center; color: var(--secondary); font-size: 12px; }
+  #sheetForm input, #sheetForm textarea { width: 100%; font: inherit; font-size: 15px; color: var(--fg); background: var(--field);
+    border: 1px solid transparent; border-radius: 10px; padding: 10px 12px; resize: vertical; }
+  #sheetForm input:focus, #sheetForm textarea:focus { outline: none; border-color: var(--accent);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 25%, transparent); }
+  .actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 4px; }
+  .actions button { appearance: none; border: 0; border-radius: 10px; padding: 10px; font-weight: 600; cursor: pointer; }
+  #fCancel { background: var(--field); color: var(--fg); }
+  #fSave { background: var(--accent); color: #fff; }
+  #fSave:disabled { opacity: .4; cursor: default; }
+  .danger { appearance: none; border: 0; background: none; color: var(--today); font-weight: 600; padding: 9px; border-radius: 10px; cursor: pointer; }
+  .danger.confirm { background: var(--today); color: #fff; }
+  .card-top { display: flex; justify-content: space-between; gap: 12px; color: var(--secondary); font-size: 12px; font-weight: 500; }
+  .card-title { display: flex; align-items: center; gap: 8px; margin-top: 3px; font-size: 19px; font-weight: 650; letter-spacing: -.012em; }
+  .dot { width: 10px; height: 10px; border-radius: 50%; flex: none; }
+  .tag { margin-left: auto; font-size: 11px; font-weight: 700; color: #fff; background: var(--today); padding: 2px 7px; border-radius: 6px; }
+  .bar { height: 4px; border-radius: 2px; background: var(--separator); margin: 10px 0 7px; overflow: hidden; }
+  .bar span { display: block; height: 100%; border-radius: 2px; }
+  .card-sub { display: flex; justify-content: space-between; gap: 12px; color: var(--secondary); font-size: 12px; }
+  .card-sub b { color: var(--fg); font-weight: 600; }
+
+  /* Teckenförklaring */
+  #legend { position: fixed; left: max(16px, env(safe-area-inset-left)); bottom: max(16px, env(safe-area-inset-bottom));
+            z-index: 3; border-radius: 14px; padding: 10px 12px; display: grid; gap: 6px; font-size: 12px; color: var(--secondary); }
+  #legend span { display: flex; align-items: center; gap: 8px; }
+  .sw { width: 22px; height: 10px; border-radius: 3px; }
+  .sw.lekt, .sw.tenta { background: linear-gradient(90deg, var(--lp1) 0 25%, var(--lp2) 25% 50%, var(--lp3) 50% 75%, var(--lp4) 75%); }
+  .sw.tenta { background-image: repeating-linear-gradient(135deg, rgba(255,255,255,.4) 0 1.5px, transparent 1.5px 4px),
+                                linear-gradient(90deg, var(--lp1) 0 25%, var(--lp2) 25% 50%, var(--lp3) 50% 75%, var(--lp4) 75%);
+              box-shadow: inset 0 0 0 20px rgba(0,0,0,.2); }
+  .sw.re { background: repeating-linear-gradient(135deg, rgba(255,255,255,.4) 0 1.5px, transparent 1.5px 4px), var(--re); }
+  .sw.thin { height: 3px; background: var(--secondary); }
+  .sw.ev { width: 8px; height: 8px; border-radius: 50%; margin: 0 7px; background: var(--fg); }
+  @media (max-width: 899px) { #legend { display: none; } }
+
+  /* Verktygstips och introduktion */
+  #tip { position: fixed; left: 0; top: 0; z-index: 6; border-radius: 10px; padding: 7px 10px; white-space: nowrap;
+         pointer-events: none; opacity: 0; transition: opacity .12s; }
+  #tip.show { opacity: 1; }
+  #tip b { display: block; font-weight: 600; }
+  #tip span { color: var(--secondary); font-size: 12px; }
+  #coach { position: fixed; left: 50%; bottom: max(24px, env(safe-area-inset-bottom)); transform: translateX(-50%); z-index: 3;
+           border-radius: 999px; padding: 8px 16px; font-weight: 500; color: var(--secondary); white-space: nowrap; transition: opacity .3s; }
+  #coach.gone, body.month #coach { opacity: 0; pointer-events: none; }
+
+  @media (prefers-reduced-motion: reduce) { *, *::before { transition: none !important; } }
+</style>
+</head>
+<body>
+<svg id="cal" role="application" aria-label="Cirkelkalender över läsåret 2026/27. Vinter upp, höst höger, sommar ner, vår vänster.">
+  <defs>
+    <pattern id="stripes" patternUnits="userSpaceOnUse" width="7" height="7" patternTransform="rotate(45)">
+      <rect width="2.5" height="7" fill="#fff" fill-opacity=".3"/>
+    </pattern>
+  </defs>
+</svg>
+
+<nav class="toolbar">
+  <div class="segmented glass" role="tablist" aria-label="Vy">
+    <span class="thumb"></span>
+    <button role="tab" id="modeYear" aria-selected="true">År</button>
+    <button role="tab" id="modeMonth" aria-selected="false">Månad</button>
+  </div>
+  <button class="pill glass" id="todayBtn">Idag</button>
+</nav>
+
+<section id="card" class="glass">
+  <div class="card-top"><span id="cDate"></span><span id="cWeek"></span></div>
+  <div class="card-title"><span class="dot" id="cDot"></span><span id="cTitle"></span><span class="tag" id="cToday">Idag</span></div>
+  <div class="bar" id="cBarWrap"><span id="cBar"></span></div>
+  <div class="card-sub"><span id="cProg"></span><span id="cNext"></span></div>
+  <div id="cEvents"></div>
+  <button class="add" id="addBtn">+ Lägg till händelse</button>
+</section>
+
+<dialog id="sheet" aria-labelledby="sheetTitle">
+  <form id="sheetForm">
+    <h2 id="sheetTitle">Ny händelse</h2>
+    <p id="sheetDate"></p>
+    <input id="fTitle" placeholder="Titel" maxlength="80" autocomplete="off">
+    <textarea id="fDesc" placeholder="Beskrivning" rows="4"></textarea>
+    <div class="actions">
+      <button type="button" id="fCancel">Avbryt</button>
+      <button type="submit" id="fSave">Lägg till</button>
+    </div>
+    <button type="button" id="fDelete" class="danger">Ta bort händelse</button>
+  </form>
+</dialog>
+
+<div id="legend" class="glass" aria-hidden="true">
+  <span><i class="sw lekt"></i>Lektioner</span>
+  <span><i class="sw tenta"></i>Tenta-P</span>
+  <span><i class="sw re"></i>Omtenta-P</span>
+  <span><i class="sw thin"></i>Officiell läsperiod</span>
+  <span><i class="sw ev"></i>Händelse</span>
+</div>
+<div id="tip" class="glass" role="tooltip"><b></b><span></span></div>
+<div id="coach" class="glass"></div>
+
+<script>
+// ============ Data (Läsårsindelning 26/27) ============
+
+// Så som en student upplever året
+const student = [
+  { type: "omtenta",      from: [2026,8,19],  to: [2026,8,29] },
+  { type: "lekt",  lp: 1, from: [2026,8,31],  to: [2026,10,19] },
+  { type: "omtenta",      from: [2026,10,20], to: [2026,10,22] },
+  { type: "tenta", lp: 1, from: [2026,10,23], to: [2026,10,30] },
+  { type: "lekt",  lp: 2, from: [2026,11,2],  to: [2026,12,17] },
+  { type: "omtenta",      from: [2026,12,18], to: [2026,12,22] },
+  { type: "lekt",  lp: 2, from: [2027,1,4],   to: [2027,1,4] },
+  { type: "lekt",  lp: 2, from: [2027,1,7],   to: [2027,1,8] },
+  { type: "tenta", lp: 2, from: [2027,1,11],  to: [2027,1,16] },
+  { type: "lekt",  lp: 3, from: [2027,1,18],  to: [2027,3,12] },
+  { type: "omtenta",      from: [2027,3,15],  to: [2027,3,17] },
+  { type: "tenta", lp: 3, from: [2027,3,18],  to: [2027,3,25] },
+  { type: "lekt",  lp: 4, from: [2027,3,30],  to: [2027,5,5] },
+  { type: "lekt",  lp: 4, from: [2027,5,7],   to: [2027,5,25] },
+  { type: "omtenta",      from: [2027,5,26],  to: [2027,5,28] },
+  { type: "tenta", lp: 4, from: [2027,5,31],  to: [2027,6,5] },
+];
+const breaks = [
+  { name: "Sommarlov",          from: [2026,8,1],   to: [2026,8,18] },
+  { name: "Jullov",             from: [2026,12,23], to: [2027,1,3] },
+  { name: "Trettondagen",       from: [2027,1,5],   to: [2027,1,6] },
+  { name: "Påsk",               from: [2027,3,26],  to: [2027,3,29] },
+  { name: "Kristi himmelsfärd", from: [2027,5,6],   to: [2027,5,6] },
+  { name: "Sommarlov",          from: [2027,6,6],   to: [2027,7,31] },
+];
+// Officiella läsperioder (tunn ring)
+const official = [
+  { name: "Nolleperiod", short: "Nolleperiod",          c: "var(--nolle)", from: [2026,8,19], to: [2026,8,29] },
+  { name: "Läsperiod 1", short: "Läsperiod 1 · v36–44", c: "var(--lp1)",   from: [2026,8,31], to: [2026,11,1] },
+  { name: "Läsperiod 2", short: "Läsperiod 2 · v45–02", c: "var(--lp2)",   from: [2026,11,2], to: [2027,1,17] },
+  { name: "Läsperiod 3", short: "Läsperiod 3 · v3–12",  c: "var(--lp3)",   from: [2027,1,18], to: [2027,3,28] },
+  { name: "Läsperiod 4", short: "Läsperiod 4 · v13–22", c: "var(--lp4)",   from: [2027,3,29], to: [2027,6,6] },
+];
+
+// ============ Tid och geometri ============
+const DAY = 864e5, START = Date.UTC(2026,7,1), END = START + 365 * DAY;
+const REF = Date.UTC(2027,0,15);                 // mitten av vintern rakt upp
+const DPD = 2 * Math.PI / 365;                   // radianer per dag
+const cx = 400, cy = 400;
+const MONTHS = ["jan","feb","mar","apr","maj","jun","jul","aug","sep","okt","nov","dec"];
+
+const toT = ([y,m,d]) => Date.UTC(y, m - 1, d);
+const angT = t => -((t - REF) / DAY) * DPD;      // tiden går moturs
+const centerAngle = t => angT(t + DAY / 2);
+const pt = (r, a) => [cx + r * Math.sin(a), cy - r * Math.cos(a)];
+const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
+const dayAt = a => START + ((Math.floor((REF - START) / DAY - a / DPD) % 365 + 365) % 365) * DAY;
+const nDays = x => (x.t1 - x.t0) / DAY;
+
+const now = new Date();
+const TODAY = Date.UTC(now.getFullYear(), now.getMonth(), now.getDate());
+const todayInYear = TODAY >= START && TODAY < END;
+
+const prep = x => ({ ...x, t0: toT(x.from), t1: toT(x.to) + DAY });
+const SEG = student.map(prep), BRK = breaks.map(prep), OFF = official.map(prep);
+const within = (list, t) => list.find(x => t >= x.t0 && t < x.t1);
+
+function range(x) {
+  const f = new Date(x.t0), l = new Date(x.t1 - DAY);
+  const fd = f.getUTCDate(), fm = MONTHS[f.getUTCMonth()], ld = l.getUTCDate(), lm = MONTHS[l.getUTCMonth()];
+  if (x.t1 - x.t0 === DAY) return `${fd} ${fm}`;
+  return fm === lm ? `${fd}–${ld} ${lm}` : `${fd} ${fm} – ${ld} ${lm}`;
+}
+function isoWeek(t) {
+  const d = new Date(t + (3 - (new Date(t).getUTCDay() + 6) % 7) * DAY);
+  return Math.ceil(((d - Date.UTC(d.getUTCFullYear(), 0, 1)) / DAY + 1) / 7);
+}
+const segTitle = s => s.type === "lekt" ? `LP${s.lp} · Lektioner` : s.type === "tenta" ? `Tenta-P · LP${s.lp}` : "Omtenta-P";
+const segColor = s => s.type === "omtenta" ? "var(--re)" : `var(--lp${s.lp})`;
+const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
+
+// Vad händer en viss dag, och vad kommer härnäst
+function describe(t) {
+  const s = within(SEG, t), b = within(BRK, t), o = within(OFF, t);
+  const wd = new Date(t).getUTCDay(), weekend = wd === 0 || wd === 6;
+  const r = { week: isoWeek(t), color: "var(--tertiary)", prog: null, next: null };
+  if (s) {
+    r.title = weekend && s.type === "lekt" ? `LP${s.lp} · Helg` : segTitle(s);
+    r.color = segColor(s);
+    r.prog = [(t - s.t0) / DAY + 1, nDays(s)];
+  } else if (b) {
+    r.title = b.name; r.prog = [(t - b.t0) / DAY + 1, nDays(b)];
+  } else {
+    r.title = weekend ? "Helg" : "Ingen undervisning";
+  }
+  if (o && o.name.startsWith("Läs")) r.lasvecka = Math.floor((t - o.t0) / (7 * DAY)) + 1;
+  const nx = SEG.find(x => x.t0 > t && !(s && x.type === s.type && x.lp === s.lp));
+  if (nx) {
+    const n = (nx.t0 - t) / DAY;
+    r.next = [segTitle(nx), n < 14 ? `om ${plural(n, "dag", "dagar")}` : `om ${plural(Math.round(n / 7), "vecka", "veckor")}`];
+  }
+  return r;
+}
+
+// ============ SVG-bygge ============
+const NS = "http://www.w3.org/2000/svg", svg = document.getElementById("cal");
+function el(parent, tag, attrs, text) {
+  const e = document.createElementNS(NS, tag);
+  for (const k in attrs) e.setAttribute(k, attrs[k]);
+  if (text != null) e.textContent = text;
+  parent.appendChild(e);
+  return e;
+}
+function sectorD(r1, r2, a0, a1) {
+  const large = (a0 - a1) > Math.PI ? 1 : 0;
+  const [x0,y0] = pt(r2,a0), [x1,y1] = pt(r2,a1), [x2,y2] = pt(r1,a1), [x3,y3] = pt(r1,a0);
+  return `M${x0} ${y0}A${r2} ${r2} 0 ${large} 0 ${x1} ${y1}L${x2} ${y2}A${r1} ${r1} 0 ${large} 1 ${x3} ${y3}Z`;
+}
+const NSS = { "vector-effect": "non-scaling-stroke" };
+function line(g, r1, r2, a, attrs) {
+  const [x1,y1] = pt(r1,a), [x2,y2] = pt(r2,a);
+  return el(g, "line", { x1, y1, x2, y2, ...NSS, ...attrs });
+}
+
+// Text har fast storlek i pixlar och döljs när den inte får plats i sin yta.
+// lines: [text, px, vikt, färg]
+let labels = [], callouts = [];
+function makeText(g, x, y, lines, fill) {
+  const t = el(g, "text", { x, y, "text-anchor": "middle", "dominant-baseline": "central", fill });
+  const px = lines[0][1], hs = lines.map(l => l[1] * 1.25), H = hs.reduce((a, b) => a + b, 0);
+  let wpx = 0, acc = -H / 2, prev = 0;
+  lines.forEach(([text, size, weight = 400, lineFill], i) => {
+    const c = acc + hs[i] / 2; acc += hs[i];
+    const s = el(t, "tspan", { x, "font-weight": weight, style: `font-size:${size / px}em`, dy: `${(c - prev) / size}em` }, text);
+    if (lineFill) s.setAttribute("fill", lineFill);
+    prev = c;
+    const upper = /[A-ZÅÄÖ]/.test(text) && text === text.toUpperCase();
+    wpx = Math.max(wpx, text.length * size * (upper ? .7 : weight >= 600 ? .6 : .55));
+  });
+  const l = { el: t, px, wpx, hpx: H, kMax: Infinity };
+  labels.push(l);
+  return l;
+}
+function moveText(l, x, y) {
+  l.el.setAttribute("x", x); l.el.setAttribute("y", y);
+  l.el.querySelectorAll("tspan").forEach(s => s.setAttribute("x", x));
+}
+function label(g, r, a, lines, { arc = Infinity, thick = Infinity, fill = "var(--fg)" } = {}) {
+  const l = makeText(g, ...pt(r, a), lines, fill);
+  const c = Math.abs(Math.cos(a)), s = Math.abs(Math.sin(a));
+  l.kMax = Math.min(arc * .9 / (l.wpx * c + l.hpx * s), thick * .88 / (l.wpx * s + l.hpx * c));
+  return l;
+}
+// Rubrik utanför ringen med streck in till perioden, när den inte får plats inuti
+function callout(inside, a, lines, color, { r0 = THICK_OUT, isEvent = false } = {}) {
+  const l = makeText(calloutG, 0, 0, lines, "var(--fg)");
+  l.kMax = -1;
+  l.isEvent = isEvent;
+  callouts.push({ l, inside, a, color, r0, isEvent });
+}
+
+// Radier
+const INNER = 183, THIN_IN = 187, THIN_OUT = 195, THICK_IN = 205, THICK_OUT = 291, THICK_MID = 248, OUTER = 342;
+const R = 285, RC = 368;     // inzoomad vy centreras på R; utflyttade rubriker börjar vid RC
+
+const base = el(svg, "g", {});
+const detail = el(svg, "g", {});
+const detailBg = el(detail, "g", {}), detailText = el(detail, "g", {});
+const leaderG = el(detail, "g", {}), calloutG = el(detail, "g", {});
+const eventG = el(svg, "g", {});
+const overview = el(svg, "g", {});
+const topG = el(svg, "g", {});
+
+// Spår
+el(base, "circle", { cx, cy, r: OUTER, fill: "var(--track)" });
+el(base, "circle", { cx, cy, r: INNER, fill: "var(--bg)" });
+
+// Månader
+for (let i = 0; i < 12; i++) {
+  const d0 = new Date(Date.UTC(2026, 7 + i, 1)), d1 = Date.UTC(2026, 8 + i, 1);
+  line(base, THICK_OUT, OUTER, angT(+d0), { stroke: "var(--separator)", "stroke-width": 1 });
+  label(base, 317, (angT(+d0) + angT(d1)) / 2, [[MONTHS[d0.getUTCMonth()].toUpperCase(), 12, 600]], { fill: "var(--secondary)" });
+}
+
+// Dagar, helger och veckor (månadsvy)
+let todayNum = null;
+for (let t = START; t < END; t += DAY) {
+  const d = new Date(t), wd = d.getUTCDay(), a = angT(t), weekend = wd === 0 || wd === 6;
+  if (weekend) el(detailBg, "path", { d: sectorD(330, OUTER, a, angT(t + DAY)), fill: "var(--weekend)" });
+  line(detailBg, wd === 1 ? THICK_OUT : 335, OUTER, a, { stroke: "var(--separator)", "stroke-width": wd === 1 ? 1 : .75 });
+  if (wd === 1) label(detailText, 302, angT(t + 3.5 * DAY), [["v" + isoWeek(t), 11, 600]], { arc: 302 * 7 * DPD, thick: 20, fill: "var(--tertiary)" });
+  const isToday = t === TODAY;
+  const fit = { arc: 353 * DPD, thick: 18, fill: isToday ? "#fff" : weekend ? "var(--tertiary)" : "var(--secondary)" };
+  if (isToday) {
+    const [x, y] = pt(353, centerAngle(t));
+    todayNum = { circle: el(detailText, "circle", { cx: x, cy: y, r: 9, fill: "var(--today)" }) };
+  }
+  const l = label(detailText, 353, centerAngle(t), [[String(d.getUTCDate()), 10, isToday ? 700 : 500]], fit);
+  if (isToday) todayNum.label = l;
+}
+
+// Studentringen (tjock)
+const white2 = "rgba(255,255,255,.85)";
+for (const s of SEG) {
+  const a0 = angT(s.t0), a1 = angT(s.t1), mid = (a0 + a1) / 2, d = sectorD(THICK_IN, THICK_OUT, a0, a1);
+  s.g = el(base, "g", { class: "seg" });
+  el(s.g, "path", { d, fill: segColor(s) });
+  if (s.type === "tenta") el(s.g, "path", { d, fill: "#000", "fill-opacity": .2 });
+  if (s.type !== "lekt") el(s.g, "path", { d, fill: "url(#stripes)" });
+  el(s.g, "path", { d, fill: "none", stroke: "var(--track)", "stroke-width": 2, ...NSS });
+
+  const fit = { arc: THICK_MID * nDays(s) * DPD, thick: THICK_OUT - THICK_IN, fill: "#fff" };
+  const title = s.type === "lekt" ? `LP${s.lp} · Lektioner` : s.type === "tenta" ? "Tenta-P" : "Omtenta-P";
+  label(overview, THICK_MID, mid, [[s.type === "lekt" ? `LP${s.lp}` : title.replace("-P", ""), s.type === "lekt" ? 17 : 11, 700]], fit);
+  const inside = label(detailText, THICK_MID, mid, [[title, s.type === "lekt" ? 14 : 13, 700], [range(s), 11, 500, white2]], fit);
+  callout(inside, mid, [[segTitle(s), 12, 600], [range(s), 11, 400, "var(--secondary)"]], segColor(s));
+}
+
+// Uppehåll
+for (const b of BRK) {
+  const mid = (angT(b.t0) + angT(b.t1)) / 2;
+  const fit = { arc: THICK_MID * nDays(b) * DPD, thick: THICK_OUT - THICK_IN, fill: "var(--secondary)" };
+  label(overview, THICK_MID, mid, [[b.name, 12, 600]], fit);
+  const inside = label(detailText, THICK_MID, mid, [[b.name, 13, 600], [range(b), 11, 400, "var(--tertiary)"]], fit);
+  callout(inside, mid, [[b.name, 12, 600], [range(b), 11, 400, "var(--secondary)"]], "var(--tertiary)");
+}
+
+// Officiella läsperioder (tunn)
+for (const o of OFF) {
+  const a0 = angT(o.t0), a1 = angT(o.t1);
+  o.g = el(base, "g", { class: "seg" });
+  el(o.g, "path", { d: sectorD(THIN_IN, THIN_OUT, a0, a1), fill: o.c, stroke: "var(--track)", "stroke-width": 1.5, ...NSS });
+  label(detailText, 172, (a0 + a1) / 2, [[o.short, 11, 600, o.c], [range(o), 10, 400, "var(--tertiary)"]],
+        { arc: 172 * nDays(o) * DPD, thick: 26 });
+}
+
+// Årstider och idag-status i mitten (årsvy)
+for (const [s, a] of [["VINTER", 0], ["HÖST", Math.PI / 2], ["SOMMAR", Math.PI], ["VÅR", -Math.PI / 2]])
+  label(overview, 152, a, [[s, 10, 600]], { fill: "var(--tertiary)" });
+{
+  const info = describe(TODAY);
+  makeText(overview, cx, cy, todayInYear ? [
+    ["IDAG", 11, 700, "var(--today)"],
+    [`v. ${info.week}`, 34, 700],
+    [info.title, 13, 600, "var(--secondary)"],
+    [info.next ? `${info.next[0]} ${info.next[1]}` : "", 12, 400, "var(--tertiary)"],
+  ] : [["LÄSÅR", 11, 700, "var(--secondary)"], ["26/27", 34, 700]], "var(--fg)");
+}
+
+// Fokuslinje (månadsvy) och idag-markör
+const focusLine = el(topG, "line", { stroke: "var(--fg)", "stroke-opacity": .45, "stroke-width": 1.5, "stroke-linecap": "round", ...NSS });
+let todayDot = null;
+if (todayInYear) {
+  const a = centerAngle(TODAY);
+  line(topG, INNER, OUTER, a, { stroke: "var(--today)", "stroke-width": 2, "stroke-linecap": "round" });
+  todayDot = el(topG, "circle", { cx: pt(OUTER, a)[0], cy: pt(OUTER, a)[1], r: 4, fill: "var(--today)" });
+  label(overview, 362, a, [["Idag", 12, 700]], { fill: "var(--today)" });
+}
+
+// ============ Vy, zoom och rörelse ============
+const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
+const view = { z: 0, f: todayInYear ? centerAngle(TODAY) : 0 };
+let mode = "year", anim = null, K = 1, VB = [0, 0, 800, 800];
+
+// Inzoomad skala är konstant (beror bara på skärmstorlek)
+const kZoom = () => Math.max(270 / Math.min(innerWidth, innerHeight), 340 / Math.max(innerWidth, innerHeight));
+
+function layoutCallouts(k) {
+  leaderG.replaceChildren();
+  for (const c of callouts) c.l.kMax = -1;
+  const out = callouts.filter(c => k > c.inside.kMax).sort((p, q) => q.a - p.a);
+  const cs = a => [Math.abs(Math.cos(a)), Math.abs(Math.sin(a))];
+  const tHalf = (c, a) => { const [co, si] = cs(a); return ((c.l.wpx * co + c.l.hpx * si) / 2 + 6) * k; };
+
+  out.forEach(c => c.la = c.a);
+  for (let it = 0; it < 300; it++) {
+    let moved = false;
+    for (let i = 0; i < out.length - 1; i++) {
+      const p = out[i], q = out[i + 1];
+      const need = (tHalf(p, p.la) + tHalf(q, q.la)) / RC, gap = p.la - q.la;
+      if (gap < need - 1e-6) { const d = (need - gap) / 2; p.la += d; q.la -= d; moved = true; }
+    }
+    if (!moved) break;
+  }
+  for (const c of out) {
+    const [co, si] = cs(c.la);
+    moveText(c.l, ...pt(RC + 3 * k + (c.l.wpx * si + c.l.hpx * co) / 2 * k, c.la));
+    c.l.kMax = Infinity;
+    const p0 = pt(c.r0, c.a);
+    el(leaderG, "polyline", { points: [p0, pt(OUTER + 4, c.a), pt(RC, c.la)].join(" "), fill: "none",
+                              stroke: c.isEvent ? "var(--secondary)" : "var(--tertiary)", "stroke-width": 1, "stroke-linejoin": "round", ...NSS });
+    if (!c.isEvent)
+      el(leaderG, "circle", { cx: p0[0], cy: p0[1], r: 3.5 * k, fill: c.color, stroke: "var(--bg)", "stroke-width": 1.5, ...NSS });
+  }
+}
+
+const stripes = document.getElementById("stripes");
+function render() {
+  const W = innerWidth, H = innerHeight;
+  const k0 = 790 / Math.min(W, H), k1 = kZoom();
+  K = k0 * Math.pow(k1 / k0, view.z);
+  const [fx, fy] = pt(R, view.f);
+  const x = cx + (fx - cx) * view.z, y = cy + (fy - cy) * view.z;
+  VB = [x - W * K / 2, y - H * K / 2, W * K, H * K];
+  svg.setAttribute("viewBox", VB.join(" "));
+
+  const zo = clamp((view.z - .35) / .4, 0, 1);
+  detail.style.opacity = zo; detail.style.display = zo > 0 ? "" : "none";
+  overview.style.opacity = 1 - zo; overview.style.display = zo < 1 ? "" : "none";
+  for (const l of labels) {
+    l.el.setAttribute("font-size", l.px * K);
+    l.el.style.display = K <= l.kMax ? "" : "none";
+  }
+  stripes.setAttribute("patternTransform", `rotate(45) scale(${K})`);
+  if (todayDot) todayDot.setAttribute("r", 4 * K);
+  for (const d of eventDots) d.setAttribute("r", 3.5 * K);
+  if (todayNum) {
+    todayNum.circle.setAttribute("r", 9 * K);
+    todayNum.circle.style.display = K <= todayNum.label.kMax ? "" : "none";
+  }
+
+  const [lx1, ly1] = pt(INNER, view.f), [lx2, ly2] = pt(OUTER, view.f);
+  Object.entries({ x1: lx1, y1: ly1, x2: lx2, y2: ly2 }).forEach(([k, v]) => focusLine.setAttribute(k, v));
+  focusLine.style.opacity = zo;
+  if (zo > 0) updateCard(dayAt(view.f));
+}
+
+const ease = k => 1 - Math.pow(1 - k, 4);
+function animateTo(z, f, dur = 520) {
+  cancelAnimationFrame(anim);
+  const z0 = view.z, f0 = view.f;
+  const df = ((f - f0) % (2 * Math.PI) + 3 * Math.PI) % (2 * Math.PI) - Math.PI;   // kortaste vägen
+  const t0 = performance.now();
+  if (reduceMotion) dur = 0;
+  (function step(now) {
+    const k = dur ? clamp((now - t0) / dur, 0, 1) : 1, e = ease(k);
+    view.z = z0 + (z - z0) * e;
+    view.f = f0 + df * e;
+    render();
+    if (k < 1) anim = requestAnimationFrame(step);
+  })(t0);
+}
+const snap = (dur = 320) => animateTo(1, centerAngle(dayAt(view.f)), dur);
+function glide(v) {
+  let last = performance.now();
+  const step = now => {
+    const dt = Math.min(32, now - last); last = now;
+    view.f += v * dt; v *= Math.pow(.995, dt);
+    render();
+    if (Math.abs(v) > 4e-5) anim = requestAnimationFrame(step); else snap();
+  };
+  anim = requestAnimationFrame(step);
+}
+
+// ============ Lägen ============
+const $ = id => document.getElementById(id);
+function setMode(m) {
+  mode = m;
+  document.body.classList.toggle("month", m === "month");
+  $("modeYear").setAttribute("aria-selected", m === "year");
+  $("modeMonth").setAttribute("aria-selected", m === "month");
+  hideTip();
+  if (m === "month") dismissCoach();
+}
+function zoomTo(t) { setMode("month"); animateTo(1, centerAngle(t)); }
+function zoomOut() { setMode("year"); animateTo(0, view.f); }
+const goToday = () => zoomTo(todayInYear ? TODAY : dayAt(view.f));
+
+$("modeYear").onclick = zoomOut;
+$("modeMonth").onclick = () => mode === "month" ? snap() : goToday();
+$("todayBtn").onclick = goToday;
+
+// ============ Infokort ============
+let cardT = null;
+function updateCard(t) {
+  if (t === cardT) return;
+  cardT = t;
+  const info = describe(t);
+  $("cDate").textContent = fmtDate(t);
+  renderEventList(t);
+  $("cWeek").textContent = `Vecka ${info.week}` + (info.lasvecka ? ` · läsvecka ${info.lasvecka}` : "");
+  $("cTitle").textContent = info.title;
+  $("cDot").style.background = info.color;
+  $("cToday").hidden = t !== TODAY;
+  $("cBarWrap").style.visibility = info.prog ? "visible" : "hidden";
+  if (info.prog) {
+    $("cBar").style.width = `${info.prog[0] / info.prog[1] * 100}%`;
+    $("cBar").style.background = info.color;
+  }
+  $("cProg").textContent = info.prog ? `Dag ${info.prog[0]} av ${info.prog[1]}` : "";
+  $("cNext").innerHTML = info.next ? `${info.next[0]} <b>${info.next[1]}</b>` : "";
+}
+
+// ============ Introduktion ============
+const coach = $("coach");
+coach.textContent = matchMedia("(hover: hover)").matches
+  ? "Klicka på hjulet för att zooma in" : "Tryck på hjulet för att zooma in";
+try { if (localStorage.getItem("hjul-coach") === "1") coach.classList.add("gone"); } catch {}
+function dismissCoach() {
+  coach.classList.add("gone");
+  try { localStorage.setItem("hjul-coach", "1"); } catch {}
+}
+
+// ============ Verktygstips (årsvy) ============
+const tip = $("tip");
+let hovered = null;
+function hideTip() {
+  tip.classList.remove("show");
+  if (hovered && hovered.g) hovered.g.classList.remove("hover");
+  hovered = null;
+  svg.classList.remove("over-ring");
+}
+function hit(ev) {
+  const x = VB[0] + ev.clientX * K - cx, y = VB[1] + ev.clientY * K - cy;
+  const a = Math.atan2(x, -y);
+  return { r: Math.hypot(x, y), a, t: dayAt(a) };
+}
+function hover(ev) {
+  if (mode !== "year" || ev.pointerType === "touch") return;
+  const h = hit(ev);
+  svg.classList.toggle("over-ring", h.r >= INNER && h.r <= OUTER + 20);
+  let item = null, title = "";
+  if (h.r >= THICK_IN && h.r <= THICK_OUT) {
+    item = within(SEG, h.t);
+    if (item) title = segTitle(item);
+    else if ((item = within(BRK, h.t))) title = item.name;
+  } else if (h.r >= INNER && h.r < THICK_IN) {
+    item = within(OFF, h.t);
+    if (item) title = item.short;
+  } else if (h.r > THICK_OUT + 30 && h.r <= OUTER + 12 && eventsOn(h.t).length) {
+    const list = eventsOn(h.t);
+    item = hovered && hovered.isEvent && hovered.t0 === h.t ? hovered : { isEvent: true, t0: h.t, t1: h.t + DAY };
+    title = list.map(e => e.title).join(", ");
+  }
+  if (item !== hovered) {
+    if (hovered && hovered.g) hovered.g.classList.remove("hover");
+    if (item && item.g) item.g.classList.add("hover");
+    hovered = item;
+  }
+  if (!item) { tip.classList.remove("show"); return; }
+  tip.querySelector("b").textContent = title;
+  tip.querySelector("span").textContent = item.isEvent ? fmtDate(item.t0) : `${range(item)} · ${plural(nDays(item), "dag", "dagar")}`;
+  const w = tip.offsetWidth, hgt = tip.offsetHeight;
+  const left = ev.clientX + 16 + w > innerWidth - 8 ? ev.clientX - 16 - w : ev.clientX + 16;
+  const top = clamp(ev.clientY + 16, 8, innerHeight - hgt - 8);
+  tip.style.transform = `translate(${left}px, ${top}px)`;
+  tip.classList.add("show");
+}
+
+// ============ Pekare, hjul och tangentbord ============
+let drag = null;
+svg.addEventListener("pointerdown", ev => {
+  if (ev.button !== 0) return;
+  drag = { x0: ev.clientX, y0: ev.clientY, lx: ev.clientX, ly: ev.clientY, lt: ev.timeStamp,
+           moved: false, v: 0, r: clamp(hit(ev).r, 200, 360) };
+  svg.setPointerCapture(ev.pointerId);
+});
+svg.addEventListener("pointermove", ev => {
+  if (!drag) return hover(ev);
+  if (!drag.moved && Math.hypot(ev.clientX - drag.x0, ev.clientY - drag.y0) > 6) {
+    drag.moved = true;
+    if (mode === "month") { cancelAnimationFrame(anim); svg.classList.add("dragging"); }
+  }
+  if (drag.moved && mode === "month") {
+    const mx = ev.clientX - drag.lx, my = ev.clientY - drag.ly, dt = Math.max(1, ev.timeStamp - drag.lt);
+    const df = -(mx * Math.cos(view.f) + my * Math.sin(view.f)) * K / drag.r;
+    view.f += df;
+    drag.v = .6 * (df / dt) + .4 * drag.v;
+    render();
+  }
+  drag.lx = ev.clientX; drag.ly = ev.clientY; drag.lt = ev.timeStamp;
+});
+function endDrag(ev, cancelled) {
+  svg.classList.remove("dragging");
+  if (!drag) return;
+  const d = drag; drag = null;
+  if (!d.moved && !cancelled) {
+    const h = hit(ev);
+    if (h.r < INNER) { if (mode === "month") zoomOut(); }
+    else if (h.r <= OUTER + 30) zoomTo(h.t);
+  } else if (mode === "month") {
+    if (!reduceMotion && Math.abs(d.v) > 3e-4 && ev.timeStamp - d.lt < 80) glide(d.v); else snap();
+  }
+}
+svg.addEventListener("pointerup", ev => endDrag(ev, false));
+svg.addEventListener("pointercancel", ev => endDrag(ev, true));
+svg.addEventListener("pointerleave", () => { if (!drag) hideTip(); });
+
+let wheelTimer = null, pinch = 0;
+svg.addEventListener("wheel", ev => {
+  ev.preventDefault();
+  if (ev.ctrlKey) {                       // nyp på styrplatta
+    pinch += ev.deltaY;
+    if (pinch < -30 && mode === "year") { pinch = 0; zoomTo(hit(ev).t); }
+    else if (pinch > 30 && mode === "month") { pinch = 0; zoomOut(); }
+    clearTimeout(wheelTimer); wheelTimer = setTimeout(() => pinch = 0, 200);
+    return;
+  }
+  if (mode !== "month") return;
+  cancelAnimationFrame(anim);
+  const delta = Math.abs(ev.deltaX) > Math.abs(ev.deltaY) ? ev.deltaX : ev.deltaY;
+  view.f -= delta * (ev.deltaMode === 1 ? 16 : 1) * K / R;
+  render();
+  clearTimeout(wheelTimer); wheelTimer = setTimeout(() => snap(), 160);
+}, { passive: false });
+
+addEventListener("keydown", e => {
+  if (e.metaKey || e.ctrlKey || e.altKey || sheet.open || e.target.closest?.("input, textarea")) return;
+  if (e.key === "Escape") zoomOut();
+  else if (e.key === "t" || e.key === "T") goToday();
+  else if (mode === "month" && (e.key === "ArrowRight" || e.key === "ArrowLeft")) {
+    e.preventDefault();
+    const step = (e.shiftKey ? 7 : 1) * (e.key === "ArrowRight" ? 1 : -1);
+    animateTo(1, centerAngle(dayAt(view.f) + step * DAY), 260);
+  }
+});
+addEventListener("resize", () => { layoutCallouts(kZoom()); render(); });
+
+// ============ Händelser ============
+const STORE = "hjul-handelser";
+let events = [];
+try { events = JSON.parse(localStorage.getItem(STORE)) || []; } catch {}
+const saveEvents = () => { try { localStorage.setItem(STORE, JSON.stringify(events)); } catch {} };
+const eventsOn = t => events.filter(e => e.date === t);
+const EV_R = 336;             // händelsepricken ligger i ytterbandet
+let eventDots = [];
+
+function fmtDate(t) {
+  const s = new Date(t).toLocaleDateString("sv-SE", { weekday: "long", day: "numeric", month: "long", timeZone: "UTC" });
+  return s[0].toUpperCase() + s.slice(1);
+}
+const trunc = (s, n = 26) => s.length > n ? s.slice(0, n - 1) + "…" : s;
+
+// Prickar på hjulet + rubriker utanför ringen (månadsvy)
+function drawEvents() {
+  eventG.replaceChildren();
+  for (const c of callouts) if (c.isEvent) c.l.el.remove();
+  callouts = callouts.filter(c => !c.isEvent);
+  labels = labels.filter(l => !l.isEvent);
+  eventDots = [];
+  const byDay = new Map();
+  for (const e of events) if (e.date >= START && e.date < END) byDay.set(e.date, [...(byDay.get(e.date) || []), e]);
+  for (const [t, list] of byDay) {
+    const a = centerAngle(t), [x, y] = pt(EV_R, a);
+    eventDots.push(el(eventG, "circle", { cx: x, cy: y, r: 3.5, fill: "var(--fg)", stroke: "var(--track)", "stroke-width": 1.5, ...NSS }));
+    const text = trunc(list[0].title) + (list.length > 1 ? ` +${list.length - 1}` : "");
+    callout({ kMax: -Infinity }, a, [[text, 12, 600]], "var(--fg)", { r0: EV_R, isEvent: true });
+  }
+  layoutCallouts(kZoom());
+}
+
+// Lista i infokortet
+function renderEventList(t) {
+  const list = $("cEvents");
+  list.replaceChildren();
+  for (const ev of eventsOn(t)) {
+    const row = document.createElement("div");
+    row.className = "ev";
+    const h = document.createElement("h3");
+    h.textContent = ev.title;
+    const b = document.createElement("button");
+    b.textContent = "Redigera";
+    b.onclick = () => openSheet(t, ev);
+    row.append(h, b);
+    if (ev.desc) {
+      const p = document.createElement("p");
+      p.textContent = ev.desc;
+      row.append(p);
+    }
+    list.append(row);
+  }
+}
+
+// Ark för att skapa/redigera
+const sheet = $("sheet"), fTitle = $("fTitle"), fDesc = $("fDesc"), fSave = $("fSave"), fDelete = $("fDelete");
+let editing = null, editDate = null;
+function openSheet(t, ev = null) {
+  editing = ev; editDate = t;
+  $("sheetTitle").textContent = ev ? "Redigera händelse" : "Ny händelse";
+  $("sheetDate").textContent = fmtDate(t);
+  fTitle.value = ev ? ev.title : "";
+  fDesc.value = ev ? ev.desc : "";
+  fSave.textContent = ev ? "Spara" : "Lägg till";
+  fSave.disabled = !fTitle.value.trim();
+  fDelete.hidden = !ev;
+  fDelete.classList.remove("confirm");
+  fDelete.textContent = "Ta bort händelse";
+  sheet.showModal();
+  fTitle.focus();
+}
+function commitEvents() {
+  saveEvents();
+  drawEvents();
+  cardT = null;
+  render();
+}
+fTitle.addEventListener("input", () => fSave.disabled = !fTitle.value.trim());
+fDesc.addEventListener("keydown", e => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) $("sheetForm").requestSubmit(); });
+$("sheetForm").addEventListener("submit", e => {
+  e.preventDefault();
+  const title = fTitle.value.trim(), desc = fDesc.value.trim();
+  if (!title) return;
+  if (editing) Object.assign(editing, { title, desc });
+  else events.push({ id: String(Date.now()) + Math.random().toString(36).slice(2, 7), date: editDate, title, desc });
+  commitEvents();
+  sheet.close();
+});
+$("fCancel").onclick = () => sheet.close();
+fDelete.onclick = () => {
+  if (!fDelete.classList.contains("confirm")) {
+    fDelete.classList.add("confirm");
+    fDelete.textContent = "Bekräfta borttagning";
+    return;
+  }
+  events = events.filter(e => e !== editing);
+  commitEvents();
+  sheet.close();
+};
+sheet.addEventListener("click", e => { if (e.target === sheet) sheet.close(); });   // klick utanför arket
+$("addBtn").onclick = () => { cancelAnimationFrame(anim); snap(); openSheet(dayAt(view.f)); };
+
+drawEvents();
+render();
+</script>
+</body>
+</html>
